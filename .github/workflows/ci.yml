@@ -1,4 +1,5 @@
-name: CI Pipeline
+name: CI Pipeline V5.0
+
 on:
   push:
     branches: [develop, main]
@@ -7,6 +8,7 @@ on:
 
 jobs:
   lint:
+    name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,10 +16,15 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm ci
-      - run: npm run lint
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Type Check
+        run: npm run type-check
 
   unit-test:
+    name: Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,10 +32,15 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm ci
-      - run: npm run test:unit
+      - name: Install dependencies
+        run: npm ci
+      - name: Build packages
+        run: npm run build
+      - name: Run unit tests
+        run: npm run test:unit
 
   integration-test:
+    name: Integration Tests (LocalStack)
     runs-on: ubuntu-latest
     services:
       localstack:
@@ -36,18 +48,27 @@ jobs:
         ports:
           - 4566:4566
         env:
-          SERVICES: s3,dynamodb,lambda,sqs,sns,stepfunctions,apigateway,events,iam,sts
+          SERVICES: s3,dynamodb,lambda,sqs,sns,stepfunctions,apigateway,events,iam,sts,secretsmanager
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
+      - name: Build packages
+        run: npm run build
       - name: Wait for LocalStack
         run: |
-          timeout 60 bash -c 'until curl -sf http://localhost:4566/_localstack/health; do sleep 2; done'
-      - run: npm run test:integration
+          timeout 120 bash -c 'until curl -sf http://localhost:4566/_localstack/health | jq -e ".services" > /dev/null; do sleep 2; done'
+      - name: Run integration tests
+        run: npm run test:integration
         env:
           AWS_ENDPOINT_URL: http://localhost:4566
           AWS_ACCESS_KEY_ID: test
@@ -55,6 +76,7 @@ jobs:
           AWS_DEFAULT_REGION: us-east-1
 
   security-scan:
+    name: Security Scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,8 +84,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm ci
-      - run: npx snyk test --all-projects || true
+      - name: Install dependencies
+        run: npm ci
+      - name: Run Snyk security scan
+        run: npx snyk test --all-projects || true
+        continue-on-error: true
 
   deploy-staging:
     needs: [lint, unit-test, integration-test]

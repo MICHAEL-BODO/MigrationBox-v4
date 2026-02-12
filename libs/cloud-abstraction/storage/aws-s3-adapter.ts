@@ -13,9 +13,11 @@ import {
   ListObjectsV2Command,
   CopyObjectCommand,
   HeadObjectCommand,
+  CreateBucketCommand,
+  DeleteBucketCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { StorageAdapter } from '../interfaces';
+import { StorageAdapter } from '../../../packages/cal/src/interfaces';
 
 export class AWSS3Adapter implements StorageAdapter {
   private client: S3Client;
@@ -97,5 +99,26 @@ export class AWSS3Adapter implements StorageAdapter {
       lastModified: response.LastModified || new Date(),
       metadata: (response.Metadata as Record<string, string>) || {},
     };
+  }
+
+  async createBucket(bucket: string, region?: string): Promise<void> {
+    const commandInput: any = {
+      Bucket: bucket,
+    };
+    
+    // Only add LocationConstraint if region is provided and not us-east-1 (default)
+    if (region && region !== 'us-east-1') {
+      commandInput.CreateBucketConfiguration = {
+        LocationConstraint: region as any,
+      };
+    }
+    
+    await this.client.send(new CreateBucketCommand(commandInput));
+  }
+
+  async deleteBucket(bucket: string): Promise<void> {
+    await this.client.send(new DeleteBucketCommand({
+      Bucket: bucket,
+    }));
   }
 }

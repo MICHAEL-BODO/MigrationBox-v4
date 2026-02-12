@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@migrationbox/types": ["packages/shared/types/src"],
+      "@migrationbox/utils": ["packages/shared/utils/src"],
+      "@migrationbox/cal": ["packages/cal/src"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "libs/**/*.ts", "packages/**/*.ts", "services/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist", "build", ".next", "coverage"]
+}

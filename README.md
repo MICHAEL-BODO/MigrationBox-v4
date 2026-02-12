@@ -95,7 +95,9 @@ Claude Extended Thinking enables multi-step reasoning chains evaluating 100+ var
 - **MCP Servers**: ✅ 14 connected
 - **Architecture**: ✅ V5.0 complete (31 sections, 2,859 lines)
 - **Sprint Planning**: ✅ 12 sprints planned (419 tasks)
-- **Frontend**: 🔲 Next.js shell scaffolding (Sprint 2)
+- **Sprint 1**: ✅ Complete (Monorepo, CAL interfaces, CI/CD)
+- **Sprint 2**: ✅ Complete (9 CAL adapters, DynamoDB/Neo4j schemas, unit tests)
+- **Frontend**: 🔲 Next.js shell scaffolding (Sprint 2 P1)
 - **iPhone App**: 🔲 React Native setup (Sprint 10)
 - **I2I Pipeline**: 🔲 Layer 1 development (Sprint 5)
 

@@ -28,11 +28,19 @@ dist/
 build/
 .next/
 coverage/
+.turbo/
+*.tsbuildinfo
 
 # Docker
 localstack-data/
 temporal-db-data/
 grafana-data/
+neo4j-data/
+neo4j-logs/
+neo4j-import/
+opensearch-data/
+postgres-data/
+redis-data/
 
 # Python
 __pycache__/

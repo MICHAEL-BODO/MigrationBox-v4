@@ -75,12 +75,121 @@ services:
     networks:
       - migrationbox-net
 
+  # ============================================================
+  # Neo4j - Graph Database for Dependency Mapping
+  # ============================================================
+  neo4j:
+    container_name: migrationbox-neo4j
+    image: neo4j:5.15-community
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-localdev123}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=2G
+      - NEO4J_dbms_memory_pagecache_size=1G
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+      - neo4j-import:/var/lib/neo4j/import
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "${NEO4J_PASSWORD:-localdev123}", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - migrationbox-net
+
+  # ============================================================
+  # OpenSearch - Vector Database for RAG & Semantic Search
+  # ============================================================
+  opensearch:
+    container_name: migrationbox-opensearch
+    image: opensearchproject/opensearch:2.11.0
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - migrationbox-net
+
+  opensearch-dashboards:
+    container_name: migrationbox-opensearch-dashboards
+    image: opensearchproject/opensearch-dashboards:2.11.0
+    ports:
+      - "5601:5601"
+    environment:
+      - 'OPENSEARCH_HOSTS=["http://opensearch:9200"]'
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    networks:
+      - migrationbox-net
+
+  # ============================================================
+  # MLflow - ML Model Registry & Experiment Tracking
+  # ============================================================
+  mlflow:
+    container_name: migrationbox-mlflow
+    image: ghcr.io/mlflow/mlflow:v2.9.2
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=postgresql://migrationhub:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/migrationhub
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=s3://mlflow-artifacts
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_DEFAULT_REGION=us-east-1
+    command: >
+      mlflow server
+      --backend-store-uri postgresql://migrationhub:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/migrationhub
+      --default-artifact-root s3://mlflow-artifacts
+      --host 0.0.0.0
+      --port 5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    networks:
+      - migrationbox-net
+
 volumes:
   localstack-data:
     driver: local
   postgres-data:
     driver: local
   redis-data:
+    driver: local
+  neo4j-data:
+    driver: local
+  neo4j-logs:
+    driver: local
+  neo4j-import:
+    driver: local
+  opensearch-data:
     driver: local
 
 networks:
