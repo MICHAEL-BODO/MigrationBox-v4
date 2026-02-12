@@ -1,0 +1,34 @@
+version: '3.8'
+
+# MigrationBox V4.1 - LocalStack Only (Lightweight Dev)
+# Usage: docker compose -f docker-compose.localstack.yml up -d
+
+services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    ports:
+      - "4566:4566"           # LocalStack Gateway
+      - "4510-4559:4510-4559" # External service ports
+    environment:
+      - SERVICES=s3,dynamodb,lambda,sqs,sns,stepfunctions,apigateway,events,iam,sts,logs,cloudwatch,secretsmanager,kms,kinesis
+      - DEBUG=0
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - LAMBDA_EXECUTOR=docker-reuse
+      - LAMBDA_REMOTE_DOCKER=0
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./localstack-data:/var/lib/localstack"
+      - "../../scripts:/etc/localstack/init/ready.d"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - migrationbox
+
+networks:
+  migrationbox:
+    driver: bridge

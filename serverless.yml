@@ -1,0 +1,140 @@
+service: migrationbox
+frameworkVersion: '4'
+
+provider:
+  name: ${env:PROVIDER, 'aws'}
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${env:REGION, 'us-east-1'}
+  memorySize: 256
+  timeout: 30
+  environment:
+    STAGE: ${self:provider.stage}
+    PROVIDER: ${env:PROVIDER, 'aws'}
+    WORKLOADS_TABLE: migrationbox-workloads-${self:provider.stage}
+    ASSESSMENTS_TABLE: migrationbox-assessments-${self:provider.stage}
+    MIGRATIONS_TABLE: migrationbox-migrations-${self:provider.stage}
+    TRANSFERS_TABLE: migrationbox-transfers-${self:provider.stage}
+    EVENT_BUS: migrationbox-events-${self:provider.stage}
+
+custom:
+  providers:
+    aws:
+      runtime: nodejs20.x
+      apiGateway: REST
+      storage: s3
+      database: dynamodb
+      messaging: sqs
+    azure:
+      runtime: node20
+      apiGateway: apim
+      storage: blob
+      database: cosmosdb
+      messaging: servicebus
+    gcp:
+      runtime: nodejs20
+      apiGateway: endpoints
+      storage: gcs
+      database: firestore
+      messaging: pubsub
+
+resources:
+  Resources:
+    WorkloadsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: migrationbox-workloads-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: tenantId
+            AttributeType: S
+          - AttributeName: workloadId
+            AttributeType: S
+          - AttributeName: source
+            AttributeType: S
+          - AttributeName: discoveredAt
+            AttributeType: S
+          - AttributeName: criticality
+            AttributeType: S
+          - AttributeName: type
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenantId
+            KeyType: HASH
+          - AttributeName: workloadId
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: source-index
+            KeySchema:
+              - AttributeName: source
+                KeyType: HASH
+              - AttributeName: discoveredAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: criticality-index
+            KeySchema:
+              - AttributeName: criticality
+                KeyType: HASH
+              - AttributeName: type
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+    AssessmentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: migrationbox-assessments-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: tenantId
+            AttributeType: S
+          - AttributeName: assessmentId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenantId
+            KeyType: HASH
+          - AttributeName: assessmentId
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+
+    MigrationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: migrationbox-migrations-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: tenantId
+            AttributeType: S
+          - AttributeName: migrationId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenantId
+            KeyType: HASH
+          - AttributeName: migrationId
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+
+    TransfersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: migrationbox-transfers-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: tenantId
+            AttributeType: S
+          - AttributeName: transferId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenantId
+            KeyType: HASH
+          - AttributeName: transferId
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+
+    MigrationEventBus:
+      Type: AWS::Events::EventBus
+      Properties:
+        Name: migrationbox-events-${self:provider.stage}
+
+    TransferBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: migrationbox-transfers-${self:provider.stage}

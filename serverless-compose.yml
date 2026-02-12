@@ -1,0 +1,70 @@
+# MigrationBox V4.1 - Multi-service orchestration
+# Deploys all services with shared outputs
+
+services:
+  discovery:
+    path: services/discovery
+    params:
+      eventBusArn: ${shared.eventBusArn}
+      workloadsTableArn: ${shared.workloadsTableArn}
+
+  assessment:
+    path: services/assessment
+    dependsOn:
+      - discovery
+    params:
+      workloadsTableArn: ${shared.workloadsTableArn}
+      bedrockModelId: ${shared.bedrockModelId}
+
+  orchestration:
+    path: services/orchestration
+    dependsOn:
+      - discovery
+      - assessment
+    params:
+      eventBusArn: ${shared.eventBusArn}
+      migrationsTableArn: ${shared.migrationsTableArn}
+
+  validation:
+    path: services/validation
+    dependsOn:
+      - orchestration
+    params:
+      migrationsTableArn: ${shared.migrationsTableArn}
+
+  provisioning:
+    path: services/provisioning
+    dependsOn:
+      - assessment
+    params:
+      mcpAzureEndpoint: ${shared.mcpAzureEndpoint}
+      mcpAwsEndpoint: ${shared.mcpAwsEndpoint}
+      mcpGcpEndpoint: ${shared.mcpGcpEndpoint}
+
+  data-transfer:
+    path: services/data-transfer
+    dependsOn:
+      - provisioning
+    params:
+      transferBucket: ${shared.transferBucket}
+
+  frontend:
+    path: frontend
+    dependsOn:
+      - discovery
+      - assessment
+      - orchestration
+    params:
+      apiEndpoint: ${orchestration.apiEndpoint}
+      authDomain: ${shared.authDomain}
+
+shared:
+  eventBusArn: arn:aws:events:us-east-1:000000000000:event-bus/migrationbox-events-${self:provider.stage}
+  workloadsTableArn: arn:aws:dynamodb:us-east-1:000000000000:table/migrationbox-workloads-${self:provider.stage}
+  migrationsTableArn: arn:aws:dynamodb:us-east-1:000000000000:table/migrationbox-migrations-${self:provider.stage}
+  bedrockModelId: anthropic.claude-3-5-sonnet-20241022-v2:0
+  mcpAzureEndpoint: http://mcp-azure-cli:8080
+  mcpAwsEndpoint: http://mcp-aws-console:8080
+  mcpGcpEndpoint: http://mcp-gcp-console:8080
+  authDomain: auth.migrationbox.com
+  transferBucket: migrationbox-transfers-${self:provider.stage}

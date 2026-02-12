@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+.serverless/
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+
+# Build
+dist/
+build/
+.next/
+coverage/
+
+# Docker
+localstack-data/
+temporal-db-data/
+grafana-data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temp
+*.tmp
+*.bak
+
+# Secrets (NEVER commit)
+*.pem
+*.key
+credentials.json
+service-account.json

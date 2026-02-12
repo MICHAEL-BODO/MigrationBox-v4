@@ -1,0 +1,89 @@
+# MigrationBox V4+ - Local Development Stack
+# Docker Compose for LocalStack + Supporting Services
+# Version: 1.0.0 | Updated: 2026-02-12
+
+version: '3.8'
+
+services:
+  # ============================================================
+  # LocalStack - AWS Cloud Emulation (Core)
+  # ============================================================
+  localstack:
+    container_name: migrationbox-localstack
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"           # Gateway (all services)
+      - "4510-4559:4510-4559" # External service ports
+    environment:
+      - SERVICES=s3,sqs,sns,dynamodb,lambda,apigateway,stepfunctions,events,iam,cloudformation,sts,logs,cloudwatch,secretsmanager,ssm,kms
+      - DEBUG=${DEBUG:-0}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - LAMBDA_EXECUTOR=docker-reuse
+      - LAMBDA_REMOTE_DOCKER=0
+      - DEFAULT_REGION=us-east-1
+      - PERSISTENCE=1
+    volumes:
+      - "${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
+      - "./localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh"
+      - "localstack-data:/var/lib/localstack"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - migrationbox-net
+
+  # ============================================================
+  # PostgreSQL - Analytics & Reporting Database
+  # ============================================================
+  postgres:
+    container_name: migrationbox-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=migrationhub
+      - POSTGRES_USER=migrationhub
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-localdev123}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U migrationhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - migrationbox-net
+
+  # ============================================================
+  # Redis - Caching & Session Management
+  # ============================================================
+  redis:
+    container_name: migrationbox-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - migrationbox-net
+
+volumes:
+  localstack-data:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  migrationbox-net:
+    driver: bridge
+    name: migrationbox-network
