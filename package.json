@@ -1,7 +1,7 @@
 {
   "name": "migrationbox-v4",
-  "version": "4.1.0",
-  "description": "MigrationBox - Enterprise Multi-Cloud Migration Automation Platform",
+  "version": "4.3.0",
+  "description": "MigrationBox V4.3 - AI-First Multi-Cloud Migration Platform with Predictive Intelligence, Autonomous Operations & Phase-Gated Approvals",
   "main": "index.js",
   "scripts": {
     "lint": "eslint . --ext .js,.ts,.jsx,.tsx",
