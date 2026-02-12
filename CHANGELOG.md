@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.0.0] - 2026-02-12 (Codename: Phoenix)
+
+### Added — Five Flagship Capabilities
+- **Intent-to-Infrastructure (I2I) Pipeline**: 4-layer hybrid architecture (LLM Intent Ingestion → OPA/Rego Policy Guardrails → Deterministic Terraform Synthesis Engine → Closed-Loop Reconciliation). Natural language → validated, deployable IaC. 20x–50x efficiency multiplier.
+- **Agentic AI Orchestration**: 6 specialized agents (Discovery, Assessment, IaC Generation, Validation, Optimization, Orchestration) coordinated via EventBridge using Linux Foundation A2A protocol. AWS-validated 7.13x productivity multiplier.
+- **CRDT Knowledge Network**: Conflict-Free Replicated Data Types for distributed migration intelligence. Anonymized pattern replication. GDPR-compliant. Based on Yjs/Automerge (League of Legends scale: 7.5M concurrent).
+- **Extended Thinking Engine**: Claude Extended Thinking for multi-step reasoning chains evaluating 100+ variables. Dependency analysis, risk scoring with confidence intervals, multi-cloud cost projections.
+- **Federated MCP Server Mesh**: 12+ Docker MCP servers forming multi-cloud knowledge mesh (AWS, Azure, GCP, Context7). Real-time cross-cloud documentation querying and IaC generation.
+
+### Added — Architecture & Planning
+- Complete ARCHITECTURE.md V5.0 (31 sections, 2,859 lines, 158KB) — authoritative platform specification
+- Comprehensive TODO.md V5.0 (419 tasks across 12 sprints with owners assigned)
+- Updated README.md V5.0 with flagship capabilities, metrics, and repository structure
+- Updated STATUS.md V5.0 with 95% planning readiness assessment
+- Neo4j graph database architecture (dependency graphs + CRDT knowledge patterns)
+- OpenSearch Serverless vector database (RAG, semantic search, document embeddings)
+- MLflow model registry for champion/challenger ML model management
+- 14 AI/ML models specified (XGBoost, LightGBM, Neural Networks, GraphSAGE GNN, PPO RL, Whisper, Polly)
+- iPhone Companion App architecture (React Native + Swift, Whisper Hungarian voice, Polly Dóra TTS)
+- Desktop SaaS architecture (Next.js 15, TypeScript, Tailwind CSS, shadcn/ui)
+- I2I Building Block Terraform module library (30+ modules across AWS/Azure/GCP)
+- OPA/Rego compliance policy framework (PCI-DSS, HIPAA, SOC 2, GDPR)
+- CUE Lang intent schema validation specification
+- Bedrock Guardrails integration for AI safety
+
+### Changed
+- Upgraded from V4.2 to V5.0 architecture (major version bump)
+- Replaced Neptune Serverless with Neo4j for graph database (cost optimization + CRDT compatibility)
+- Added OpenSearch Serverless for vector DB / RAG (new database)
+- Added Redis/ElastiCache for caching layer (sessions, rate limiting, inference cache)
+- Expanded from 6 event types to 21 core event types
+- Expanded from 4 DynamoDB tables to 6 tables (added IntentSchemas, AgentTasks)
+- Expanded frontend from single Next.js app to Desktop SaaS + iPhone Companion
+- Expanded MCP servers from 6 conceptual to 12+ Docker containerized with health monitoring
+- Expanded AI/ML from 5 models to 14 models (added GNN, RL, Whisper, Polly, Guardrails)
+- Expanded task count from ~192 to 419 tasks
+- Expanded team from 7 to 8 (added AI/ML Engineer role)
+
+### Supersedes
+- ARCHITECTURE-V4-PLUS.md (all content consolidated into ARCHITECTURE.md V5.0)
+- AI_ENHANCEMENTS.md (all content consolidated into ARCHITECTURE.md V5.0 Section 12)
+
+---
+
 ## [4.1.0] - 2026-02-12
 
 ### Added
