@@ -8,6 +8,7 @@ const navigation = [
   { name: 'Discoveries', href: '/discoveries', icon: '⬢' },
   { name: 'Assessments', href: '/assessments', icon: '◈' },
   { name: 'Migrations', href: '/migrations', icon: '▶' },
+  { name: 'AI Agents', href: '/agents', icon: '⬡' },
   { name: 'I2I Pipeline', href: '/i2i', icon: '⬣' },
   { name: 'Knowledge', href: '/knowledge', icon: '◉' },
   { name: 'Optimization', href: '/optimization', icon: '◇' },
