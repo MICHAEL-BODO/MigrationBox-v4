@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sidebar-width: 256px;
+  --sidebar-collapsed: 64px;
+  --header-height: 64px;
+}
+
+body {
+  @apply bg-zinc-950 text-zinc-100 font-sans;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { @apply bg-zinc-900; }
+::-webkit-scrollbar-thumb { @apply bg-zinc-700 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-zinc-600; }

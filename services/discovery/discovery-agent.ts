@@ -1,22 +1,34 @@
 /**
  * MigrationBox V5.0 - Discovery Agent
- * 
+ *
  * AI-powered discovery agent that orchestrates workload discovery across cloud providers.
- * Extends BaseAgent and integrates with EventBridge for coordination.
+ * Extends BaseAgent pattern and integrates with EventBridge for coordination.
+ * Includes retry logic with exponential backoff and progress reporting.
  */
 
-import { AgentTask } from '@migrationbox/types';
-import { getDatabaseAdapter, getMessagingAdapter } from '@migrationbox/cal';
+import { AgentTask, CloudProvider } from '@migrationbox/types';
+import { DiscoveryService } from './discovery-service';
+import { publishDiscoveryEvent } from './eventbridge-integration';
 
-// BaseAgent will be defined in packages/agents/base-agent.ts (Sprint 7)
-// For now, we define a minimal interface
 interface BaseAgent {
   agentType: string;
   tenantId: string;
   start(): Promise<void>;
   stop(): Promise<void>;
-  getStatus(): Promise<{ status: string; lastHeartbeat: Date }>;
+  getStatus(): Promise<AgentStatus>;
 }
+
+interface AgentStatus {
+  status: 'idle' | 'running' | 'stopped' | 'error';
+  lastHeartbeat: Date;
+  currentTask?: string;
+  progress?: number;
+  tasksCompleted: number;
+  tasksFailed: number;
+}
+
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 2000;
 
 export class DiscoveryAgent implements BaseAgent {
   agentType = 'discovery';
@@ -24,9 +36,15 @@ export class DiscoveryAgent implements BaseAgent {
   private running = false;
   private lastHeartbeat: Date = new Date();
   private heartbeatInterval?: NodeJS.Timeout;
+  private currentTaskId?: string;
+  private progress = 0;
+  private tasksCompleted = 0;
+  private tasksFailed = 0;
+  private service: DiscoveryService;
 
-  constructor(tenantId: string) {
+  constructor(tenantId: string, db: any, messaging: any) {
     this.tenantId = tenantId;
+    this.service = new DiscoveryService(db, messaging);
   }
 
   async start(): Promise<void> {
@@ -37,196 +55,162 @@ export class DiscoveryAgent implements BaseAgent {
     this.running = true;
     this.startHeartbeat();
 
-    // Publish agent started event
-    const messaging = getMessagingAdapter();
-    await messaging.publishEvent('migrationbox-events-dev', {
+    await publishDiscoveryEvent('AgentStarted', {
       agentType: this.agentType,
       tenantId: this.tenantId,
       status: 'started',
-      timestamp: new Date().toISOString(),
-    }, 'AgentStarted');
+    });
   }
 
   async stop(): Promise<void> {
-    if (!this.running) {
-      return;
-    }
+    if (!this.running) return;
 
     this.running = false;
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
     }
 
-    const messaging = getMessagingAdapter();
-    await messaging.publishEvent('migrationbox-events-dev', {
+    await publishDiscoveryEvent('AgentStopped', {
       agentType: this.agentType,
       tenantId: this.tenantId,
       status: 'stopped',
-      timestamp: new Date().toISOString(),
-    }, 'AgentStopped');
+      tasksCompleted: this.tasksCompleted,
+      tasksFailed: this.tasksFailed,
+    });
   }
 
-  async getStatus(): Promise<{ status: string; lastHeartbeat: Date }> {
+  async getStatus(): Promise<AgentStatus> {
     return {
       status: this.running ? 'running' : 'stopped',
       lastHeartbeat: this.lastHeartbeat,
+      currentTask: this.currentTaskId,
+      progress: this.progress,
+      tasksCompleted: this.tasksCompleted,
+      tasksFailed: this.tasksFailed,
     };
   }
 
   /**
-   * Self-discovery: Identifies what to scan based on environment
+   * Execute a discovery task with retry logic
    */
-  async identifyScanTargets(credentials: Record<string, any>): Promise<{
-    provider: string;
-    regions: string[];
-    services: string[];
-  }> {
-    // Analyze credentials to determine provider
-    let provider = 'aws';
-    if (credentials.azureTenantId || credentials.azureClientId) {
-      provider = 'azure';
-    } else if (credentials.gcpProjectId || credentials.gcpKeyFile) {
-      provider = 'gcp';
+  async executeTask(task: AgentTask): Promise<void> {
+    this.currentTaskId = task.taskId;
+    this.progress = 0;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        await this.executeTaskAttempt(task, attempt);
+        this.tasksCompleted++;
+        this.currentTaskId = undefined;
+        this.progress = 100;
+        return;
+      } catch (error: any) {
+        console.error(`Discovery task ${task.taskId} attempt ${attempt}/${MAX_RETRIES} failed:`, error.message);
+
+        if (attempt < MAX_RETRIES) {
+          const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+          console.log(`Retrying in ${delay}ms...`);
+          await this.sleep(delay);
+        } else {
+          this.tasksFailed++;
+          this.currentTaskId = undefined;
+
+          await publishDiscoveryEvent('DiscoveryFailed', {
+            agentType: this.agentType,
+            tenantId: this.tenantId,
+            taskId: task.taskId,
+            error: error.message,
+            attempts: attempt,
+          });
+
+          throw error;
+        }
+      }
+    }
+  }
+
+  private async executeTaskAttempt(task: AgentTask, attempt: number): Promise<void> {
+    const { discoveryId, sourceEnvironment, regions, scope, credentials } = task.payload;
+
+    const scanTargets = this.identifyScanTargets(
+      credentials || {},
+      sourceEnvironment,
+      regions
+    );
+
+    await this.service.processDiscovery({
+      discoveryId: discoveryId || task.taskId,
+      tenantId: task.tenantId,
+      sourceEnvironment: scanTargets.provider as CloudProvider,
+      regions: scanTargets.regions,
+      scope: scope || 'full',
+      credentials: credentials || {},
+    });
+
+    this.progress = 100;
+
+    await publishDiscoveryEvent('DiscoveryCompleted', {
+      agentType: this.agentType,
+      tenantId: task.tenantId,
+      taskId: task.taskId,
+      discoveryId,
+      attempt,
+    });
+  }
+
+  /**
+   * Identify scan targets based on credentials and config
+   */
+  identifyScanTargets(
+    credentials: Record<string, any>,
+    sourceEnvironment?: string,
+    regions?: string[]
+  ): { provider: string; regions: string[]; services: string[] } {
+    let provider = sourceEnvironment || 'aws';
+    if (!sourceEnvironment) {
+      if (credentials.azureTenantId || credentials.azureClientId) provider = 'azure';
+      else if (credentials.gcpProjectId || credentials.gcpKeyFile) provider = 'gcp';
     }
 
-    // Default regions per provider
     const defaultRegions: Record<string, string[]> = {
       aws: ['us-east-1', 'us-west-2', 'eu-west-1'],
       azure: ['eastus', 'westus2', 'westeurope'],
       gcp: ['us-central1', 'us-east1', 'europe-west1'],
     };
 
-    // Default services to scan
     const defaultServices: Record<string, string[]> = {
-      aws: [
-        'EC2', 'RDS', 'S3', 'Lambda', 'VPC', 'ELB', 'DynamoDB',
-        'ECS', 'EKS', 'IAM', 'Route53', 'CloudWatch', 'SecretsManager',
-        'SQS', 'SNS', 'Kinesis',
-      ],
-      azure: [
-        'VMs', 'SQL', 'CosmosDB', 'Blob', 'Functions', 'VNets',
-        'AppService', 'AKS', 'ServiceBus',
-      ],
-      gcp: [
-        'ComputeEngine', 'CloudSQL', 'Firestore', 'CloudStorage',
-        'CloudFunctions', 'CloudRun', 'VPC', 'GKE',
-      ],
+      aws: ['EC2', 'RDS', 'S3', 'Lambda', 'VPC', 'ELB', 'DynamoDB', 'ECS', 'EKS', 'IAM', 'Route53', 'CloudWatch', 'SecretsManager', 'SQS', 'SNS', 'Kinesis'],
+      azure: ['VMs', 'SQL', 'CosmosDB', 'Blob', 'Functions', 'VNets', 'AppService', 'AKS', 'ServiceBus'],
+      gcp: ['ComputeEngine', 'CloudSQL', 'Firestore', 'CloudStorage', 'CloudFunctions', 'CloudRun', 'VPC', 'GKE'],
     };
 
     return {
       provider,
-      regions: credentials.regions || defaultRegions[provider] || [],
-      services: credentials.services || defaultServices[provider] || [],
+      regions: regions || defaultRegions[provider] || [],
+      services: defaultServices[provider] || [],
     };
   }
 
-  /**
-   * Execute discovery task
-   */
-  async executeDiscoveryTask(task: AgentTask): Promise<void> {
-    const db = getDatabaseAdapter();
-    const messaging = getMessagingAdapter();
-
-    try {
-      // Update task status
-      await db.updateItem('migrationbox-agent-tasks-dev', {
-        tenantId: task.tenantId,
-        taskId: task.taskId,
-      }, {
-        status: 'running',
-        startedAt: new Date().toISOString(),
-      });
-
-      // Identify scan targets
-      const scanTargets = await this.identifyScanTargets(task.payload.credentials || {});
-
-      // Import appropriate adapter
-      let adapter: any;
-      switch (scanTargets.provider) {
-        case 'aws':
-          adapter = await import('./aws-adapter-v5');
-          break;
-        case 'azure':
-          adapter = await import('./azure-adapter');
-          break;
-        case 'gcp':
-          adapter = await import('./gcp-adapter');
-          break;
-        default:
-          throw new Error(`Unsupported provider: ${scanTargets.provider}`);
-      }
-
-      // Execute discovery for each region
-      const allWorkloads: any[] = [];
-      for (const region of scanTargets.regions) {
-        const workloads = await adapter.discover({
-          region,
-          credentials: task.payload.credentials,
-          scope: task.payload.scope || 'full',
-        });
-
-        // Set tenantId and discoveryId
-        workloads.forEach(w => {
-          w.tenantId = task.tenantId;
-          w.discoveryId = task.payload.discoveryId || 'pending';
-        });
-
-        allWorkloads.push(...workloads);
-      }
-
-      // Store results
-      await db.updateItem('migrationbox-agent-tasks-dev', {
-        tenantId: task.tenantId,
-        taskId: task.taskId,
-      }, {
-        status: 'completed',
-        completedAt: new Date().toISOString(),
-        result: {
-          workloadsFound: allWorkloads.length,
-          provider: scanTargets.provider,
-          regions: scanTargets.regions,
-        },
-      });
-
-      // Publish completion event
-      await messaging.publishEvent('migrationbox-events-dev', {
-        agentType: this.agentType,
-        tenantId: task.tenantId,
-        taskId: task.taskId,
-        status: 'completed',
-        workloadsFound: allWorkloads.length,
-        timestamp: new Date().toISOString(),
-      }, 'DiscoveryCompleted');
-
-    } catch (error: any) {
-      // Update task with error
-      const db = getDatabaseAdapter();
-      await db.updateItem('migrationbox-agent-tasks-dev', {
-        tenantId: task.tenantId,
-        taskId: task.taskId,
-      }, {
-        status: 'failed',
-        failedAt: new Date().toISOString(),
-        error: error.message,
-      });
-
-      throw error;
-    }
-  }
-
-  /**
-   * Start heartbeat mechanism
-   */
   private startHeartbeat(): void {
     this.heartbeatInterval = setInterval(async () => {
       this.lastHeartbeat = new Date();
-      const messaging = getMessagingAdapter();
-      await messaging.publishEvent('migrationbox-events-dev', {
-        agentType: this.agentType,
-        tenantId: this.tenantId,
-        status: 'heartbeat',
-        timestamp: this.lastHeartbeat.toISOString(),
-      }, 'AgentHeartbeat');
-    }, 30000); // Every 30 seconds
+      try {
+        await publishDiscoveryEvent('AgentHeartbeat', {
+          agentType: this.agentType,
+          tenantId: this.tenantId,
+          status: this.running ? 'running' : 'stopped',
+          currentTask: this.currentTaskId,
+          progress: this.progress,
+          tasksCompleted: this.tasksCompleted,
+          tasksFailed: this.tasksFailed,
+        });
+      } catch {
+        // Heartbeat failure is non-fatal
+      }
+    }, 30000);
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
