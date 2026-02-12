@@ -53,3 +53,5 @@ npm-debug.log*
 *.key
 credentials.json
 service-account.json
+
+picpick_inst.exe
