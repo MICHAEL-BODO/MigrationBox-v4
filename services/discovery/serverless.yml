@@ -12,7 +12,68 @@ provider:
     STAGE: ${self:provider.stage}
     PROVIDER: ${env:PROVIDER, 'aws'}
     WORKLOADS_TABLE: migrationbox-workloads-${self:provider.stage}
+    DISCOVERIES_TABLE: migrationbox-discoveries-${self:provider.stage}
+    AGENT_TASKS_TABLE: migrationbox-agent-tasks-${self:provider.stage}
     EVENT_BUS: migrationbox-events-${self:provider.stage}
+    DISCOVERY_QUEUE_URL: !Ref DiscoveryQueue
+    NEO4J_URI: ${env:NEO4J_URI, 'bolt://localhost:7687'}
+    NEO4J_USER: ${env:NEO4J_USER, 'neo4j'}
+    NEO4J_PASSWORD: ${env:NEO4J_PASSWORD, 'localdev123'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:Query
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Scan
+          Resource:
+            - !Sub arn:aws:dynamodb:${self:provider.region}:*:table/migrationbox-*
+            - !Sub arn:aws:dynamodb:${self:provider.region}:*:table/migrationbox-*/index/*
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+          Resource:
+            - !GetAtt DiscoveryQueue.Arn
+            - !GetAtt DiscoveryDLQ.Arn
+        - Effect: Allow
+          Action:
+            - events:PutEvents
+          Resource:
+            - !Sub arn:aws:events:${self:provider.region}:*:event-bus/migrationbox-events-*
+        - Effect: Allow
+          Action:
+            - ec2:Describe*
+            - rds:Describe*
+            - s3:List*
+            - s3:GetBucket*
+            - lambda:List*
+            - lambda:GetFunction*
+            - elasticloadbalancing:Describe*
+            - dynamodb:Describe*
+            - dynamodb:List*
+            - ecs:Describe*
+            - ecs:List*
+            - eks:Describe*
+            - eks:List*
+            - iam:List*
+            - iam:Get*
+            - route53:List*
+            - cloudwatch:Describe*
+            - cloudwatch:List*
+            - secretsmanager:List*
+            - sqs:List*
+            - sqs:GetQueueAttributes
+            - sns:List*
+            - kinesis:List*
+            - kinesis:Describe*
+          Resource: "*"
 
 functions:
   startDiscovery:
@@ -59,6 +120,7 @@ functions:
     events:
       - sqs:
           arn: !GetAtt DiscoveryQueue.Arn
+          batchSize: 1
 
 resources:
   Resources:

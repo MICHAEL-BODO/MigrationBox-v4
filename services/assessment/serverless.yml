@@ -1,0 +1,59 @@
+service: migrationbox-assessment
+frameworkVersion: '4'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${env:REGION, 'us-east-1'}
+  memorySize: 512
+  timeout: 300
+  environment:
+    STAGE: ${self:provider.stage}
+    PROVIDER: ${env:PROVIDER, 'aws'}
+    ASSESSMENTS_TABLE: migrationbox-assessments-${self:provider.stage}
+    WORKLOADS_TABLE: migrationbox-workloads-${self:provider.stage}
+    EVENT_BUS: migrationbox-events-${self:provider.stage}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:Query
+            - dynamodb:UpdateItem
+          Resource:
+            - !Sub arn:aws:dynamodb:${self:provider.region}:*:table/migrationbox-*
+            - !Sub arn:aws:dynamodb:${self:provider.region}:*:table/migrationbox-*/index/*
+        - Effect: Allow
+          Action: events:PutEvents
+          Resource: !Sub arn:aws:events:${self:provider.region}:*:event-bus/migrationbox-events-*
+
+functions:
+  assessWorkloads:
+    handler: handler.assessWorkloads
+    description: Run 6Rs assessment on workloads
+    events:
+      - http:
+          path: /v1/assessments
+          method: post
+          cors: true
+
+  getAssessment:
+    handler: handler.getAssessment
+    description: Get assessment results
+    events:
+      - http:
+          path: /v1/assessments/{id}
+          method: get
+          cors: true
+
+  listAssessments:
+    handler: handler.listAssessments
+    description: List assessments
+    events:
+      - http:
+          path: /v1/assessments
+          method: get
+          cors: true

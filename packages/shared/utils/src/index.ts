@@ -199,7 +199,7 @@ export function truncate(text: string, maxLength: number): string {
 // ============================================================================
 
 export function getEnvironment(): 'local' | 'dev' | 'staging' | 'production' {
-  const env = process.env.NODE_ENV || process.env.STAGE || 'local';
+  const env: string = process.env.NODE_ENV || process.env.STAGE || 'local';
   if (env === 'production' || env === 'prod') return 'production';
   if (env === 'staging') return 'staging';
   if (env === 'dev' || env === 'development') return 'dev';
