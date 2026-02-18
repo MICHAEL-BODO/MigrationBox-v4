@@ -5,7 +5,7 @@
  * Requires LocalStack running on localhost:4566
  */
 
-import { AWSDynamoDBAdapter } from '../../libs/cloud-abstraction/database/aws-dynamodb-adapter';
+import { AWSDynamoDBAdapter } from '../../../libs/cloud-abstraction/database/aws-dynamodb-adapter';
 
 describe('Database Adapter Integration Tests (LocalStack)', () => {
   let adapter: AWSDynamoDBAdapter;

@@ -5,7 +5,7 @@
  * Requires LocalStack running on localhost:4566
  */
 
-import { AWSS3Adapter } from '../../libs/cloud-abstraction/storage/aws-s3-adapter';
+import { AWSS3Adapter } from '../../../libs/cloud-abstraction/storage/aws-s3-adapter';
 
 describe('Storage Adapter Integration Tests (LocalStack)', () => {
   let adapter: AWSS3Adapter;
