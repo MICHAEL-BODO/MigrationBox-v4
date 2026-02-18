@@ -1,0 +1,7 @@
+{
+  "source": "vmware",
+  "resources": [
+    { "name": "web-server-01", "powerState": "poweredOn", "uuid": "uuid-1", "resourcePool": "Pool1" },
+    { "name": "db-server-01", "powerState": "poweredOn", "uuid": "uuid-2", "resourcePool": "Pool1" }
+  ]
+}

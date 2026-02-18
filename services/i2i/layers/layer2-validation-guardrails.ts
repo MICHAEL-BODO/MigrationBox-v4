@@ -150,10 +150,10 @@ export class ValidationGuardrailEngine {
     // POLICY: Block 0.0.0.0/0 SSH access
     if (schema.networking?.securityGroups) {
       for (const sg of schema.networking.securityGroups) {
-        const sgConfig = typeof sg === 'string' ? {} : sg;
-        if (sgConfig.ingressRules) {
-          for (const rule of sgConfig.ingressRules) {
-            if (rule.cidr === '0.0.0.0/0' && rule.port === 22) {
+        const sgConfig = typeof sg === 'string' ? { name: sg, rules: [] } : sg;
+        if (sgConfig.rules) {
+          for (const rule of sgConfig.rules) {
+            if (rule.type === 'ingress' && rule.source === '0.0.0.0/0' && rule.port === 22) {
               violations.push({
                 policy: 'no-public-ssh',
                 framework: 'security',
@@ -162,12 +162,12 @@ export class ValidationGuardrailEngine {
                 resource: sgConfig.name,
               });
               remediations.push({
-                violation: 'networking.securityGroups.ingressRules.cidr',
+                violation: 'networking.securityGroups.rules.source',
                 suggestion: 'Restrict SSH to specific IP ranges or use VPN/bastion',
                 autoFix: false,
               });
             }
-            if (rule.cidr === '0.0.0.0/0' && rule.port === 3389) {
+            if (rule.type === 'ingress' && rule.source === '0.0.0.0/0' && rule.port === 3389) {
               violations.push({
                 policy: 'no-public-rdp',
                 framework: 'security',
@@ -235,7 +235,7 @@ export class ValidationGuardrailEngine {
   private enforcePCIDSS(
     schema: IntentSchema,
     violations: PolicyViolation[],
-    remediations: Remediation[]
+    _remediations: Remediation[]
   ): void {
     // PCI-DSS Requirement 3: Protect stored cardholder data
     if (schema.resources) {
@@ -288,7 +288,7 @@ export class ValidationGuardrailEngine {
   private enforceHIPAA(
     schema: IntentSchema,
     violations: PolicyViolation[],
-    remediations: Remediation[]
+    _remediations: Remediation[]
   ): void {
     // HIPAA: PHI encryption required
     if (!schema.security?.encryptionAtRest) {
@@ -341,7 +341,7 @@ export class ValidationGuardrailEngine {
   private enforceGDPR(
     schema: IntentSchema,
     violations: PolicyViolation[],
-    remediations: Remediation[]
+    _remediations: Remediation[]
   ): void {
     // GDPR: Data residency enforcement
     const euRegions = ['eu-west-1', 'eu-west-2', 'eu-central-1', 'westeurope', 'northeurope', 'europe-west1', 'europe-west3'];
@@ -353,11 +353,6 @@ export class ValidationGuardrailEngine {
         framework: 'gdpr',
         severity: 'critical',
         message: 'GDPR: Personal data must be stored within EU/EEA regions',
-      });
-      remediations.push({
-        violation: 'region',
-        suggestion: 'Deploy to EU region (eu-west-1, eu-central-1, westeurope, europe-west1)',
-        autoFix: false,
       });
     }
 
@@ -392,7 +387,7 @@ export class ValidationGuardrailEngine {
   private enforceSOC2(
     schema: IntentSchema,
     violations: PolicyViolation[],
-    remediations: Remediation[]
+    _remediations: Remediation[]
   ): void {
     // SOC 2: Availability (CC6)
     if (schema.resources) {

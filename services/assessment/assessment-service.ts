@@ -44,11 +44,7 @@ export class AssessmentService {
       assessment.tenantId = tenantId;
 
       // Persist
-      await this.db.putItem(ASSESSMENTS_TABLE, {
-        tenantId,
-        assessmentId: assessment.assessmentId,
-        ...assessment,
-      });
+      await this.db.putItem(ASSESSMENTS_TABLE, assessment);
 
       assessments.push(assessment);
     }
@@ -96,21 +92,21 @@ export class AssessmentService {
     const strategy = (Object.entries(scores) as [MigrationStrategy, number][])
       .sort((a, b) => b[1] - a[1])[0][0];
 
-    const selectedScore = this.getStrategyDetails(strategy, workload, targetProvider);
+    const selectedScore = this.getStrategyDetails(strategy, workload, targetProvider); // This actually calls analyzeXXX again, inefficient but safe
 
     return {
       assessmentId,
-      tenantId: '',
+      tenantId: '', // Set by caller
       workloadId: workload.workloadId,
       strategy,
       confidence: selectedScore.confidence,
-      costProjection: selectedScore.costProjection,
-      riskScore: selectedScore.riskScore,
-      complexityScore: selectedScore.complexityScore,
-      timelineWeeks: selectedScore.timelineWeeks,
+      costProjection: selectedScore.costProjection || { monthly: 0, yearly: 0, threeYear: 0, currency: 'USD' },
+      riskScore: selectedScore.risk,
+      complexityScore: selectedScore.complexity,
+      timelineWeeks: selectedScore.weeks,
+      timelineConfidence: { min: selectedScore.weeks * 0.8, max: selectedScore.weeks * 1.5, p50: selectedScore.weeks, p95: selectedScore.weeks * 1.2 },
       recommendations: selectedScore.recommendations,
       blockers: selectedScore.blockers,
-      scores,
       createdAt: now,
     } as Assessment;
   }
@@ -186,7 +182,7 @@ export class AssessmentService {
     return { score: Math.max(0, Math.min(100, score)), risk, complexity, weeks, confidence: 0.75, recommendations, blockers };
   }
 
-  private analyzeRefactor(workload: Workload, targetProvider: CloudProvider): StrategyScore {
+  private analyzeRefactor(workload: Workload, _targetProvider: CloudProvider): StrategyScore {
     let score = 30;
     let risk = 45;
     let complexity = 60;

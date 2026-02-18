@@ -57,9 +57,9 @@ export class DiscoveryService {
 
     // Store discovery record
     await this.db.putItem(DISCOVERIES_TABLE, {
+      ...discovery,
       tenantId: input.tenantId,
       discoveryId,
-      ...discovery,
     });
 
     // Queue async discovery processing
@@ -100,7 +100,7 @@ export class DiscoveryService {
    * List workloads for a discovery
    */
   async listWorkloads(
-    tenantId: string,
+    _tenantId: string,
     discoveryId: string,
     options?: { type?: string; limit?: number; nextToken?: string }
   ): Promise<{ workloads: Workload[]; nextToken?: string }> {

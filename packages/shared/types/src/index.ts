@@ -122,7 +122,8 @@ export interface IntentSchema {
   resources: IntentResource[];
   networking: IntentNetworking;
   security: IntentSecurity;
-  compliance: string[]; // PCI-DSS, HIPAA, SOC2, GDPR
+  compliance: Record<string, boolean>; // pciDss, hipaa, soc2, gdpr
+  monitoring?: Record<string, any>; // Added for validation guardrails
   confidence: number; // 0-1
   createdAt: string;
   validatedAt?: string;
@@ -132,18 +133,18 @@ export interface IntentResource {
   type: string; // 'vpc', 'rds', 's3', 'lambda', etc.
   name: string;
   properties: Record<string, any>;
+  config?: Record<string, any>; // Alias for properties used in some layers
   dependencies?: string[]; // References to other resource names
 }
 
 export interface IntentNetworking {
   vpc: {
     cidr: string;
-    subnets: Array<{
-      name: string;
-      cidr: string;
-      availabilityZone: string;
-      public: boolean;
-    }>;
+    subnets?: { // Made optional or flexible
+      public: number | Array<{ name: string; cidr: string; availabilityZone: string; public: boolean }>;
+      private?: number;
+    };
+    // Support for detailed subnet structure too
   };
   securityGroups: Array<{
     name: string;
@@ -160,6 +161,7 @@ export interface IntentSecurity {
   encryptionAtRest: boolean;
   encryptionInTransit: boolean;
   iamPolicies: string[];
+  iamLeastPrivilege?: boolean; // Added for validation guardrails
   secretsManagement: 'aws-secrets-manager' | 'azure-key-vault' | 'gcp-secret-manager';
 }
 

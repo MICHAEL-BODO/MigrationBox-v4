@@ -1,0 +1,6 @@
+{
+  "source": "aws",
+  "resources": [
+    { "id": "i-1234567890abcdef0", "instanceType": "t3.micro", "state": "running", "tags": { "Name": "web-app" }, "region": "us-east-1" }
+  ]
+}

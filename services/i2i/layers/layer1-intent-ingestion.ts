@@ -96,17 +96,17 @@ export class IntentIngestionEngine {
     const intentSchema: IntentSchema = {
       intentId,
       tenantId: input.tenantId,
-      provider: extractedSchema.provider || input.targetProvider || 'aws',
-      naturalLanguageInput: input.naturalLanguageInput,
-      resources: extractedSchema.resources || [],
-      networking: extractedSchema.networking || { vpc: true, subnets: { public: 2, private: 2 } },
-      security: extractedSchema.security || {
+      provider: extractedSchema?.provider || input.targetProvider || 'aws',
+      naturalLanguage: input.naturalLanguageInput,
+      resources: extractedSchema?.resources || [],
+      networking: extractedSchema?.networking || { vpc: { cidr: '10.0.0.0/16', subnets: { public: 2, private: 2 } }, securityGroups: [] },
+      security: extractedSchema?.security || {
         encryptionAtRest: true,
         encryptionInTransit: true,
-        iamLeastPrivilege: true,
+        iamPolicies: [],
+        secretsManagement: 'aws-secrets-manager',
       },
-      compliance: extractedSchema.compliance || {},
-      status: 'draft',
+      compliance: extractedSchema?.compliance || {},
       confidence: this.calculateConfidence(extractedSchema, ambiguities),
       createdAt: now,
     };
@@ -131,7 +131,7 @@ export class IntentIngestionEngine {
   ): Promise<IntentIngestionResult> {
     return this.extractIntent({
       tenantId: existingIntent.tenantId,
-      naturalLanguageInput: existingIntent.naturalLanguageInput,
+      naturalLanguageInput: existingIntent.naturalLanguage,
       targetProvider: existingIntent.provider as CloudProvider,
       context: {
         previousIntentId: existingIntent.intentId,
@@ -151,10 +151,10 @@ export class IntentIngestionEngine {
 
       const model = vertexAI.preview.getGenerativeModel({
         model: this.modelId,
-        generation_config: {
-          max_output_tokens: 4096,
+        generationConfig: {
+          maxOutputTokens: 4096,
           temperature: 0.2,
-          response_mime_type: 'application/json',
+          responseMimeType: 'application/json',
         },
       });
 
