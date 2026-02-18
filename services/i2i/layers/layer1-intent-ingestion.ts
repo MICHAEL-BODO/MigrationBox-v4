@@ -4,7 +4,7 @@
  * FLAGSHIP FEATURE
  *
  * Converts natural language migration intent into structured Intent Schema (IR).
- * Uses Bedrock Claude Sonnet 4.5 with Extended Thinking for complex intents.
+ * Uses Google Vertex AI (Gemini 1.5 Pro) for complex intents.
  * Supports multi-turn refinement and ambiguity resolution.
  */
 
@@ -56,12 +56,14 @@ Rules:
 5. If ambiguous, choose the most common enterprise interpretation and note the ambiguity`;
 
 export class IntentIngestionEngine {
-  private bedrockEndpoint: string;
+  private projectId: string;
+  private location: string;
   private modelId: string;
 
-  constructor(config?: { endpoint?: string; modelId?: string }) {
-    this.bedrockEndpoint = config?.endpoint || process.env.BEDROCK_ENDPOINT || '';
-    this.modelId = config?.modelId || 'anthropic.claude-sonnet-4-5-20250929-v1:0';
+  constructor(config?: { projectId?: string; location?: string; modelId?: string }) {
+    this.projectId = config?.projectId || process.env.GCP_PROJECT || 'migrationbox-v5';
+    this.location = config?.location || process.env.GCP_LOCATION || 'us-central1';
+    this.modelId = config?.modelId || 'gemini-1.5-pro-001';
   }
 
   /**
@@ -77,13 +79,13 @@ export class IntentIngestionEngine {
       prompt += '\n\nRefinements:\n' + input.context.refinements.join('\n');
     }
 
-    // Call Bedrock Claude for intent extraction
+    // Call Vertex AI for intent extraction
     let extractedSchema: any;
     let ambiguities: Ambiguity[] = [];
 
     try {
-      const response = await this.callBedrock(prompt, input.targetProvider);
-      extractedSchema = response.schema;
+      const response = await this.callVertex(prompt, input.targetProvider);
+      extractedSchema = response.schema || response; // Handle direct schema return
       ambiguities = response.ambiguities || [];
     } catch (error: any) {
       // Fallback: use deterministic extraction
@@ -138,39 +140,42 @@ export class IntentIngestionEngine {
     });
   }
 
-  private async callBedrock(prompt: string, targetProvider?: CloudProvider): Promise<any> {
+  private async callVertex(prompt: string, targetProvider?: CloudProvider): Promise<any> {
     try {
-      const { BedrockRuntimeClient, InvokeModelCommand } = await import('@aws-sdk/client-bedrock-runtime');
+      const { VertexAI } = await import('@google-cloud/vertexai');
 
-      const client = new BedrockRuntimeClient({
-        region: process.env.AWS_REGION || 'us-east-1',
-        ...(this.bedrockEndpoint && { endpoint: this.bedrockEndpoint }),
+      const vertexAI = new VertexAI({
+        project: this.projectId,
+        location: this.location,
       });
 
-      const body = JSON.stringify({
-        anthropic_version: 'bedrock-2023-05-31',
-        max_tokens: 4096,
-        messages: [{
-          role: 'user',
-          content: `${SYSTEM_PROMPT}\n\nTarget provider: ${targetProvider || 'aws'}\n\nUser request: ${prompt}\n\nRespond with valid JSON only.`,
+      const model = vertexAI.preview.getGenerativeModel({
+        model: this.modelId,
+        generation_config: {
+          max_output_tokens: 4096,
+          temperature: 0.2,
+          response_mime_type: 'application/json',
+        },
+      });
+
+      const result = await model.generateContent({
+        contents: [{ 
+          role: 'user', 
+          parts: [{ text: `${SYSTEM_PROMPT}\n\nTarget provider: ${targetProvider || 'aws'}\n\nUser request: ${prompt}\n\nRespond with valid JSON only.` }] 
         }],
       });
 
-      const response = await client.send(new InvokeModelCommand({
-        modelId: this.modelId,
-        body: new TextEncoder().encode(body),
-        contentType: 'application/json',
-      }));
-
-      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-      const content = responseBody.content?.[0]?.text || '{}';
+      const response = await result.response;
+      const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
 
       // Extract JSON from response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
       return jsonMatch ? JSON.parse(jsonMatch[0]) : { schema: {} };
     } catch (error: any) {
-      console.warn('Bedrock call failed, using deterministic fallback:', error.message);
-      return { schema: this.deterministicExtraction(prompt, targetProvider) };
+      console.warn('Vertex AI call failed, using deterministic fallback:', error.message);
+      // Re-throw if critical, or return deterministic fallback
+      // Since extractIntent catches errors, throwing here allows fallback logic there
+      throw error; 
     }
   }
 

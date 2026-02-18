@@ -1,198 +1,101 @@
-# MigrationBox V4+ - Local Development Stack
-# Docker Compose for LocalStack + Supporting Services
-# Version: 1.0.0 | Updated: 2026-02-12
-
 version: '3.8'
 
 services:
-  # ============================================================
-  # LocalStack - AWS Cloud Emulation (Core)
-  # ============================================================
-  localstack:
-    container_name: migrationbox-localstack
-    image: localstack/localstack:latest
+  # --- GCP Emulators ---
+  firestore-emulator:
+    image: google/cloud-sdk:emulators
+    command: gcloud beta emulators firestore start --host-port=0.0.0.0:8080
     ports:
-      - "4566:4566"           # Gateway (all services)
-      - "4510-4559:4510-4559" # External service ports
+      - "8080:8080"
     environment:
-      - SERVICES=s3,sqs,sns,dynamodb,lambda,apigateway,stepfunctions,events,iam,cloudformation,sts,logs,cloudwatch,secretsmanager,ssm,kms
-      - DEBUG=${DEBUG:-0}
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - LAMBDA_EXECUTOR=docker-reuse
-      - LAMBDA_REMOTE_DOCKER=0
-      - DEFAULT_REGION=us-east-1
-      - PERSISTENCE=1
-    volumes:
-      - "${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
-      - "./localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh"
-      - "localstack-data:/var/lib/localstack"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - FIRESTORE_PROJECT_ID=local-project
     networks:
-      - migrationbox-net
+      - migration-network
 
-  # ============================================================
-  # PostgreSQL - Analytics & Reporting Database
-  # ============================================================
-  postgres:
-    container_name: migrationbox-postgres
-    image: postgres:16-alpine
+  pubsub-emulator:
+    image: google/cloud-sdk:emulators
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
     ports:
-      - "5432:5432"
+      - "8085:8085"
     environment:
-      - POSTGRES_DB=migrationhub
-      - POSTGRES_USER=migrationhub
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-localdev123}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U migrationhub"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - PUBSUB_PROJECT_ID=local-project
     networks:
-      - migrationbox-net
+      - migration-network
 
-  # ============================================================
-  # Redis - Caching & Session Management
-  # ============================================================
-  redis:
-    container_name: migrationbox-redis
-    image: redis:7-alpine
+  storage-emulator:
+    image: fsouza/fake-gcs-server
+    command: -scheme http
     ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - "4443:4443"
     networks:
-      - migrationbox-net
+      - migration-network
 
-  # ============================================================
-  # Neo4j - Graph Database for Dependency Mapping
-  # ============================================================
+  # --- Local Infrastructure ---
   neo4j:
-    container_name: migrationbox-neo4j
-    image: neo4j:5.15-community
-    ports:
-      - "7474:7474"  # HTTP
-      - "7687:7687"  # Bolt
+    image: neo4j:5.19.0
     environment:
-      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-localdev123}
-      - NEO4J_PLUGINS=["apoc"]
-      - NEO4J_dbms_memory_heap_initial__size=512m
-      - NEO4J_dbms_memory_heap_max__size=2G
-      - NEO4J_dbms_memory_pagecache_size=1G
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+    ports:
+      - "7474:7474"
+      - "7687:7687"
     volumes:
       - neo4j-data:/data
-      - neo4j-logs:/logs
-      - neo4j-import:/var/lib/neo4j/import
-    healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "${NEO4J_PASSWORD:-localdev123}", "RETURN 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     networks:
-      - migrationbox-net
+      - migration-network
 
-  # ============================================================
-  # OpenSearch - Vector Database for RAG & Semantic Search
-  # ============================================================
-  opensearch:
-    container_name: migrationbox-opensearch
-    image: opensearchproject/opensearch:2.11.0
+  redis:
+    image: redis:7.2-alpine
     ports:
-      - "9200:9200"
-      - "9600:9600"
+      - "6379:6379"
+    networks:
+      - migration-network
+
+  postgres:
+    image: postgres:16-alpine
     environment:
-      - discovery.type=single-node
-      - plugins.security.disabled=true
-      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
-      - bootstrap.memory_lock=true
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-      nofile:
-        soft: 65536
-        hard: 65536
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=migrationbox
+    ports:
+      - "5432:5432"
     volumes:
-      - opensearch-data:/usr/share/opensearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - postgres-data:/var/lib/postgresql/data
     networks:
-      - migrationbox-net
+      - migration-network
 
-  opensearch-dashboards:
-    container_name: migrationbox-opensearch-dashboards
-    image: opensearchproject/opensearch-dashboards:2.11.0
-    ports:
-      - "5601:5601"
+  temporal:
+    image: temporalio/auto-setup:1.23.0
     environment:
-      - 'OPENSEARCH_HOSTS=["http://opensearch:9200"]'
-      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=postgres
+      - POSTGRES_SEEDS=postgres
     depends_on:
-      opensearch:
-        condition: service_healthy
+      - postgres
+    ports:
+      - "7233:7233"
+      - "8233:8233"
     networks:
-      - migrationbox-net
+      - migration-network
 
-  # ============================================================
-  # MLflow - ML Model Registry & Experiment Tracking
-  # ============================================================
-  mlflow:
-    container_name: migrationbox-mlflow
-    image: ghcr.io/mlflow/mlflow:v2.9.2
-    ports:
-      - "5000:5000"
+  temporal-ui:
+    image: temporalio/ui:2.25.0
     environment:
-      - MLFLOW_BACKEND_STORE_URI=postgresql://migrationhub:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/migrationhub
-      - MLFLOW_DEFAULT_ARTIFACT_ROOT=s3://mlflow-artifacts
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-      - AWS_ENDPOINT_URL=http://localstack:4566
-      - AWS_DEFAULT_REGION=us-east-1
-    command: >
-      mlflow server
-      --backend-store-uri postgresql://migrationhub:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/migrationhub
-      --default-artifact-root s3://mlflow-artifacts
-      --host 0.0.0.0
-      --port 5000
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    ports:
+      - "8081:8080"
     depends_on:
-      postgres:
-        condition: service_healthy
-      localstack:
-        condition: service_healthy
+      - temporal
     networks:
-      - migrationbox-net
+      - migration-network
 
 volumes:
-  localstack-data:
-    driver: local
-  postgres-data:
-    driver: local
-  redis-data:
-    driver: local
   neo4j-data:
-    driver: local
-  neo4j-logs:
-    driver: local
-  neo4j-import:
-    driver: local
-  opensearch-data:
-    driver: local
+  postgres-data:
 
 networks:
-  migrationbox-net:
+  migration-network:
     driver: bridge
-    name: migrationbox-network
