@@ -1,7 +1,7 @@
 {
-  "name": "migrationbox-v5",
-  "version": "5.0.0",
-  "description": "MigrationBox V5.0 - AI-First Multi-Cloud Migration Platform with I2I Pipeline, Agentic AI, CRDT Knowledge, Extended Thinking & MCP Mesh",
+  "name": "mike-first",
+  "version": "6.0.0",
+  "description": "MIKE-FIRST v6.0 — Migration, Intelligence, Compliance, Engineering — Fully Integrated Resilience & Security Toolkit",
   "private": true,
   "workspaces": [
     "packages/*",
@@ -10,7 +10,8 @@
   ],
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=@mike-first/dashboard",
+    "dev:all": "turbo run dev",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
     "test": "jest",
@@ -22,11 +23,13 @@
     "localstack:up": "docker compose -f infrastructure/docker/docker-compose.localstack.yml up -d",
     "localstack:down": "docker compose -f infrastructure/docker/docker-compose.localstack.yml down",
     "localstack:health": "curl -s http://localhost:4566/_localstack/health | jq",
-    "fullstack:up": "docker compose up -d",
-    "fullstack:down": "docker compose down"
+    "up": "docker compose up -d",
+    "down": "docker compose down"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.992.0",
     "@aws-sdk/client-cloudwatch": "^3.490.0",
+    "@aws-sdk/client-cost-explorer": "^3.490.0",
     "@aws-sdk/client-dynamodb": "^3.490.0",
     "@aws-sdk/client-ec2": "^3.490.0",
     "@aws-sdk/client-ecs": "^3.490.0",
@@ -64,12 +67,15 @@
     "@google-cloud/storage": "^7.7.0",
     "@google-cloud/vertexai": "^1.10.0",
     "aws-lambda": "^1.0.7",
-    "uuid": "^9.0.0"
+    "ssh2": "^1.17.0",
+    "uuid": "^9.0.0",
+    "zod": "^3.22.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.160",
     "@types/jest": "^29.5.14",
     "@types/node": "^20.0.0",
+    "@types/ssh2": "^1.15.5",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
