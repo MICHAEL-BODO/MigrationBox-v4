@@ -1,13 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
-
-const WAVES = [
-  { id: 1, name: 'Web Tier', status: 'completed', progress: 100, resources: 47, source: 'On-Prem', target: 'GCP' },
-  { id: 2, name: 'App Tier', status: 'in-progress', progress: 67, resources: 58, source: 'Azure', target: 'GCP' },
-  { id: 3, name: 'Data Tier', status: 'queued', progress: 0, resources: 42, source: 'AWS', target: 'GCP' },
-];
+import { useApi } from '../hooks/useApi';
 
 export default function MigratorPage() {
+  const scan = useApi<any>('/api/scan', { autoFetch: true });
+  const discover = useApi<any>('/api/migrator/discover', { autoFetch: true });
+  const plans = useApi<any>('/api/migrator/plan', { autoFetch: true });
+  const executions = useApi<any>('/api/migrator/execute', { autoFetch: true });
+  const orchestrate = useApi<any>('/api/orchestrate', { autoFetch: true });
   const [uptimeSeconds, setUptimeSeconds] = useState(847392);
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
@@ -25,16 +25,39 @@ export default function MigratorPage() {
     return `${d}d ${h}h ${m}m ${sec}s`;
   };
 
-  const startLanScan = () => {
+  const startLanScan = async () => {
     setScanning(true);
-    setScanProgress(0);
-    const interval = setInterval(() => {
-      setScanProgress(prev => {
-        if (prev >= 100) { clearInterval(interval); setScanning(false); return 100; }
-        return prev + Math.random() * 5;
-      });
-    }, 300);
+    setScanProgress(10);
+
+    // Real API call
+    const result = await scan.post({ wait: true });
+    setScanProgress(80);
+
+    // Refresh discovery
+    await discover.fetch();
+    setScanProgress(100);
+    setTimeout(() => setScanning(false), 500);
   };
+
+  const createPlan = async () => {
+    await plans.post({ target: 'gcp' });
+    plans.fetch();
+  };
+
+  const startOrchestration = async () => {
+    await orchestrate.post({ target: 'gcp' });
+    orchestrate.fetch();
+  };
+
+  // Derived data
+  const scanData = scan.data;
+  const hasScanResults = scanData?.hosts?.length > 0 || scanData?.status === 'completed';
+  const discoveryData = discover.data;
+  const categories = discoveryData?.categories ?? {};
+  const planList = plans.data?.plans ?? [];
+  const execList = executions.data?.executions ?? [];
+  const runList = orchestrate.data?.runs ?? [];
+  const totalDiscovered = Object.values(categories).reduce((s: number, arr: any) => s + (arr?.length ?? 0), 0);
 
   return (
     <div className="space-y-8">
@@ -45,18 +68,22 @@ export default function MigratorPage() {
             <span className="text-3xl">🚀</span>
             <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">MIGRATOR</span>
           </h1>
-          <p className="text-sm text-zinc-500 mt-1">Cloud Migration Engine — 39 Functions</p>
+          <p className="text-sm text-zinc-500 mt-1">Cloud Migration Engine — Live Backend</p>
         </div>
-        <button onClick={startLanScan} disabled={scanning} className="btn-primary flex items-center gap-2 disabled:opacity-50">
-          {scanning ? (
-            <>
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Scanning... {Math.min(100, Math.round(scanProgress))}%
-            </>
-          ) : (
-            <>🔍 Discover LAN</>
+        <div className="flex items-center gap-3">
+          <button onClick={startLanScan} disabled={scanning} className="btn-primary flex items-center gap-2 disabled:opacity-50">
+            {scanning ? (
+              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Scanning... {Math.min(100, Math.round(scanProgress))}%</>
+            ) : (
+              <>🔍 Discover LAN</>
+            )}
+          </button>
+          {hasScanResults && (
+            <button onClick={createPlan} className="btn-secondary flex items-center gap-2 text-sm">
+              📋 Build Plan
+            </button>
           )}
-        </button>
+        </div>
       </div>
 
       {/* Zero Downtime Counter */}
@@ -68,13 +95,18 @@ export default function MigratorPage() {
           <p className="text-xs text-zinc-500 mt-2">Continuous uptime maintained during all active migrations</p>
           <div className="flex items-center justify-center gap-6 mt-6">
             <div className="text-center">
-              <p className="text-2xl font-bold">147</p>
-              <p className="text-[10px] text-zinc-500">Resources Migrated</p>
+              <p className="text-2xl font-bold">{totalDiscovered}</p>
+              <p className="text-[10px] text-zinc-500">Resources Found</p>
             </div>
             <div className="w-px h-8 bg-white/10" />
             <div className="text-center">
-              <p className="text-2xl font-bold">3</p>
-              <p className="text-[10px] text-zinc-500">Active Waves</p>
+              <p className="text-2xl font-bold">{planList.length}</p>
+              <p className="text-[10px] text-zinc-500">Plans</p>
+            </div>
+            <div className="w-px h-8 bg-white/10" />
+            <div className="text-center">
+              <p className="text-2xl font-bold text-cyan-400">{runList.length}</p>
+              <p className="text-[10px] text-zinc-500">Orchestration Runs</p>
             </div>
             <div className="w-px h-8 bg-white/10" />
             <div className="text-center">
@@ -86,83 +118,147 @@ export default function MigratorPage() {
       </div>
 
       {/* LAN Scan Progress */}
-      {(scanning || scanProgress >= 100) && (
-        <div className={`rounded-xl border p-6 ${
-          scanProgress >= 100
-            ? 'border-emerald-500/20 bg-emerald-500/5'
-            : 'border-blue-500/20 bg-blue-500/5'
-        }`}>
+      {scanning && (
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-6">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium text-blue-300">
-              {scanProgress >= 100 ? '✅ LAN Discovery Complete' : '🔍 Scanning Local Network...'}
+              🔍 Scanning Local Network...
             </span>
-            <span className="text-xs text-zinc-500">SNMP + WMI + nmap</span>
+            <span className="text-xs text-zinc-500">ARP + ICMP + TCP portscan</span>
           </div>
           <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-300 ${
-                scanProgress >= 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-blue-500 to-cyan-500'
-              }`}
+              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-500"
               style={{ width: `${Math.min(100, scanProgress)}%` }}
             />
           </div>
-          {scanProgress >= 100 && (
-            <div className="grid grid-cols-4 gap-4 mt-4">
-              <DiscoveredItem icon="🖥️" label="Servers" count={12} />
-              <DiscoveredItem icon="🌐" label="Switches" count={4} />
-              <DiscoveredItem icon="🔒" label="Firewalls" count={2} />
-              <DiscoveredItem icon="💾" label="Storage" count={3} />
-            </div>
-          )}
+          <p className="text-xs text-zinc-600 mt-2">
+            {scanProgress < 30 ? 'Discovering hosts via ARP...' : scanProgress < 70 ? 'Port scanning discovered hosts...' : 'Fingerprinting services...'}
+          </p>
         </div>
       )}
 
-      {/* Migration Waves */}
-      <div>
-        <h2 className="text-sm font-semibold text-zinc-400 mb-4">Migration Waves</h2>
-        <div className="space-y-4">
-          {WAVES.map(wave => (
-            <div key={wave.id} className={`rounded-xl border bg-[#0d0d14] p-5 transition-all ${
-              wave.status === 'in-progress' ? 'border-cyan-500/20' : 'border-white/5'
-            }`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
-                    wave.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
-                    wave.status === 'in-progress' ? 'bg-cyan-500/20 text-cyan-400' :
-                    'bg-zinc-800 text-zinc-500'
-                  }`}>
-                    {wave.id}
-                  </span>
+      {/* Discovered Resources */}
+      {hasScanResults && !scanning && totalDiscovered > 0 && (
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-medium text-emerald-300">✅ LAN Discovery Complete</span>
+            <span className="text-xs text-zinc-500">{totalDiscovered} resources categorized for migration</span>
+          </div>
+          <div className="grid grid-cols-4 gap-4">
+            <DiscoveredItem icon="🖥️" label="VMs/Servers" count={categories.vms?.length ?? 0} />
+            <DiscoveredItem icon="🗄️" label="Databases" count={categories.databases?.length ?? 0} />
+            <DiscoveredItem icon="📡" label="IoT/Devices" count={categories.iot?.length ?? 0} />
+            <DiscoveredItem icon="🌐" label="Networking" count={categories.networking?.length ?? 0} />
+          </div>
+          {/* Eligibility badges */}
+          <div className="mt-4 pt-4 border-t border-emerald-500/10 flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="text-xs text-zinc-400">Eligible</span>
+              <span className="text-xs font-bold text-emerald-400">{discoveryData?.eligibility?.eligible ?? 0}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              <span className="text-xs text-zinc-400">Partial</span>
+              <span className="text-xs font-bold text-amber-400">{discoveryData?.eligibility?.partial ?? 0}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-400" />
+              <span className="text-xs text-zinc-400">Complex</span>
+              <span className="text-xs font-bold text-red-400">{discoveryData?.eligibility?.complex ?? 0}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Migration Plans */}
+      {planList.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-400 mb-4">Migration Plans</h2>
+          <div className="space-y-4">
+            {planList.map((plan: any) => (
+              <div key={plan.planId} className="rounded-xl border border-white/5 bg-[#0d0d14] p-5">
+                <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h3 className="text-sm font-semibold">{wave.name}</h3>
-                    <p className="text-[10px] text-zinc-500">{wave.source} → {wave.target}</p>
+                    <h3 className="text-sm font-semibold">Plan: {plan.planId}</h3>
+                    <p className="text-[10px] text-zinc-500">{plan.target} · {plan.totalResources} resources · {plan.waves?.length ?? 0} waves</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500">Est: {plan.estimatedDuration}</span>
+                    <button
+                      onClick={() => executions.post({ planId: plan.planId, dryRun: true })}
+                      className="btn-secondary text-xs"
+                    >🧪 Dry Run</button>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-zinc-500">{wave.resources} resources</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                    wave.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                    wave.status === 'in-progress' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 animate-pulse' :
-                    'bg-zinc-800 text-zinc-500 border border-zinc-700'
-                  }`}>{wave.status}</span>
+                {/* Waves */}
+                {plan.waves?.map((wave: any, wi: number) => (
+                  <div key={wi} className="flex items-center gap-3 py-2 border-t border-white/5">
+                    <span className="w-6 h-6 rounded-md bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-bold">{wave.order}</span>
+                    <div className="flex-1">
+                      <span className="text-xs font-medium">{wave.name}</span>
+                      <span className="text-[10px] text-zinc-500 ml-2">{wave.resources?.length ?? 0} resources</span>
+                    </div>
+                    <span className="text-[10px] text-zinc-600">{wave.estimatedDuration}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Orchestration Runs */}
+      {runList.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-400 mb-4">Orchestration Runs</h2>
+          <div className="space-y-3">
+            {runList.map((run: any) => (
+              <div key={run.runId} className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-cyan-300">Run: {run.runId}</h3>
+                    <p className="text-[10px] text-zinc-500">{run.status}</p>
+                  </div>
+                  <span className="text-xs text-zinc-500">{run.completedSteps}/{run.totalSteps} steps</span>
+                </div>
+                <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-full transition-all"
+                    style={{ width: `${(run.completedSteps / run.totalSteps) * 100}%` }}
+                  />
                 </div>
               </div>
-              <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-1000 ${
-                    wave.status === 'completed' ? 'bg-emerald-500' :
-                    wave.status === 'in-progress' ? 'bg-gradient-to-r from-cyan-500 to-blue-500' :
-                    'bg-zinc-700'
-                  }`}
-                  style={{ width: `${wave.progress}%` }}
-                />
-              </div>
-              <p className="text-[10px] text-zinc-600 mt-2 text-right">{wave.progress}%</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Start Orchestration button */}
+      {hasScanResults && (
+        <div className="rounded-xl border border-cyan-500/20 bg-[#0d0d14] p-6 text-center">
+          <span className="text-4xl block mb-3">🎯</span>
+          <h3 className="text-lg font-semibold text-cyan-300">Full 9-Step Migration Orchestration</h3>
+          <p className="text-xs text-zinc-500 mt-1 max-w-lg mx-auto">
+            Pre-flight → Discovery → Assessment → Plan → Provision → Transfer → Cutover → Validation → Cleanup
+          </p>
+          <button onClick={startOrchestration} className="btn-primary mt-4">
+            🚀 Start Orchestration
+          </button>
+        </div>
+      )}
+
+      {/* No scan prompt */}
+      {!hasScanResults && !scanning && (
+        <div className="rounded-xl border border-white/10 bg-[#0d0d14] p-12 text-center">
+          <span className="text-5xl block mb-4">🔍</span>
+          <h2 className="text-lg font-semibold text-zinc-300">Scan Your Network First</h2>
+          <p className="text-sm text-zinc-500 mt-2 max-w-md mx-auto">
+            Click "Discover LAN" to scan your local network using ARP discovery, ICMP ping sweep, and TCP port scanning.
+            Discovered hosts will be categorized for migration planning.
+          </p>
+        </div>
+      )}
 
       {/* Target Clouds */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

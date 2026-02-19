@@ -1,7 +1,7 @@
-# MigrationBox V5.0 — Implementation Plan
+# MigrationBox V6.0 — Implementation Plan
 
 > **Goal**: Migrate on-premises / AWS / Azure → **GCP** (always)
-> **Last Updated**: 05:20 CET, 2026-02-18
+> **Last Updated**: 2026-02-19
 
 ---
 
@@ -11,8 +11,8 @@
 | ----- | ------------------------- | ----------- | -------- |
 | 1     | Environment Fix           | ✅ DONE     | —        |
 | 2     | Fix Broken Tests          | ✅ DONE     | 32/32 ✅ |
-| 3     | Data Transfer Service     | ✅ DONE     | 14/14 ✅ |
-| 4     | Validation Service        | ✅ DONE     | 14/14 ✅ |
+| 3     | Backend Services          | ✅ DONE     | 28/28 ✅ |
+| 4     | Frontend Implementation   | ✅ DONE     | —        |
 | 5     | Wire Orchestration        | 🔲 PENDING  | —        |
 | 6     | On-Prem + Azure Discovery | 🔲 PENDING  | —        |
 | 7     | I2I Pipeline (4 Layers)   | ⏳ 2/4 done | 14/14 ✅ |
@@ -32,11 +32,7 @@
 
 - Located Git at `c:\DevTools\Git\bin\git.exe`
 - Created `recovery-session` branch from `main`
-- Installed missing packages:
-  - `@google-cloud/vertexai` — Vertex AI SDK
-  - `@types/uuid` — UUID type declarations
-  - `@types/aws-lambda` — Lambda handler types
-  - `aws-lambda` — Lambda runtime
+- Installed missing packages (`@google-cloud/vertexai`, `aws-lambda`, etc.)
 
 ---
 
@@ -44,97 +40,51 @@
 
 **Duration**: ~30 min | **Status**: COMPLETE
 
-### Files Modified:
+### Key Fixes:
 
-- `packages/shared/types/src/index.ts`
-  - `IntentSchema.compliance`: `string[]` → `Record<string, boolean>`
-  - `IntentSchema.naturalLanguage` (was `naturalLanguageInput`)
-  - `IntentSchema.monitoring?` added
-  - `IntentResource.config?` added (alias for `properties`)
-  - `IntentNetworking.subnets` made flexible
-  - `IntentSecurity.iamLeastPrivilege?` added
-- `services/i2i/layers/layer1-intent-ingestion.ts`
-  - Fixed `naturalLanguage` field name
-  - Fixed Vertex AI SDK: `generationConfig`, `maxOutputTokens`, `responseMimeType`
-- `services/i2i/layers/layer2-validation-guardrails.ts`
-  - Fixed security group rule access (`rules` vs `ingressRules`)
-  - Fixed unused `remediations` params → `_remediations`
-- `services/assessment/assessment-service.ts`
-  - Fixed property mapping: `riskScore` → `risk`, `complexityScore` → `complexity`
-  - Added `timelineConfidence` to Assessment output
-  - Fixed duplicate property in `putItem`
-- `services/discovery/discovery-service.ts`
-  - Fixed duplicate property overwrite in `putItem`
-  - Fixed unused `tenantId` → `_tenantId`
-
-### Test Results:
-
-```
-Discovery:  9/9  ✅
-Assessment: 9/9  ✅
-I2I:       14/14 ✅
-```
+- Type definitions for `IntentSchema` (compliance, monitoring, config)
+- Bug fixes in `assessment-service`, `discovery-service`, `i2i` layers
+- **Test Results**: Discovery 9/9 ✅ | Assessment 9/9 ✅ | I2I 14/14 ✅
 
 ---
 
-## ✅ Phase 3: Data Transfer Service
+## ✅ Phase 3: Backend Services
 
-**Duration**: ~20 min | **Status**: COMPLETE
+**Duration**: ~35 min | **Status**: COMPLETE
 
-### Files Created:
+### Data Transfer Service
 
-- `services/data-transfer/data-transfer-service.ts`
-- `services/data-transfer/__tests__/data-transfer-service.test.ts`
+- **Features**: `startTransfer`, `copyStorage` (S3/Azure→GCS), `copyDatabase` (RDS/Dynamo→CloudSQL/Firestore), `streamData`, `validateTransfer`
+- **Tests**: 14/14 ✅
 
-### Key Features:
+### Validation Service
 
-- `startTransfer(config)` — Creates transfer job, queues to SQS
-- `copyStorage()` — S3→GCS, Azure Blob→GCS via GCP Storage Transfer Service
-- `copyDatabase()` — RDS→Cloud SQL, DynamoDB→Firestore, CosmosDB→Firestore
-- `streamData()` — CDP (Continuous Data Protection) streaming
-- `getTransferStatus()` — Job polling
-- `validateTransfer()` — Checksum + row count + data loss validation
-- `cancelTransfer()` — Graceful cancellation
-
-### Engine Mappings (Source → GCP):
-
-| Source           | GCP Target         |
-| ---------------- | ------------------ |
-| PostgreSQL (RDS) | Cloud SQL Postgres |
-| MySQL (RDS)      | Cloud SQL MySQL    |
-| DynamoDB         | Firestore          |
-| CosmosDB         | Firestore          |
-| MongoDB          | Firestore          |
-| Redis            | Memorystore        |
-| S3               | GCS                |
-| Azure Blob       | GCS                |
-
-### Test Results: 14/14 ✅
+- **Features**: `connectivity`, `data-integrity`, `performance`, `security`, `dns`, `ssl`, `iam` checks
+- **Tests**: 14/14 ✅
 
 ---
 
-## ✅ Phase 4: Validation Service
+## ✅ Phase 4: Frontend Implementation (S-Tier)
 
-**Duration**: ~15 min | **Status**: COMPLETE
+**Duration**: ~45 min | **Status**: COMPLETE
 
-### Files Created:
+### Auditor Pillar
 
-- `services/validation/validation-service.ts`
-- `services/validation/__tests__/validation-service.test.ts`
+- **Guardian Agent**: Live violation monitoring dashboard wired to `/api/auditor/guardian`
+- **Reports**: Compliance reporting engine wired to `/api/auditor/reports`
+- **One-Click Audit**: Instant scan trigger wired to `/api/scan`
 
-### Validation Checks:
+### Analyzer Pillar
 
-| Check            | Description                      |
-| ---------------- | -------------------------------- |
-| `connectivity`   | TCP/HTTP endpoint reachability   |
-| `data-integrity` | Checksum + row count comparison  |
-| `performance`    | Latency (ms) + throughput (Mbps) |
-| `security`       | Encryption, IAM, firewall rules  |
-| `dns`            | DNS resolution                   |
-| `ssl`            | TLS certificate validity         |
-| `iam`            | IAM policy least-privilege       |
+- **Cost Optimizer**: Burn rate & savings analysis wired to `/api/analyzer/cost`
+- **Security Center**: Threat detection & attack sim wired to `/api/analyzer/security`
+- **Health Monitor**: Real-time service health wired to `/api/analyzer/health`
 
-### Test Results: 14/14 ✅
+### Migrator Pillar
+
+- **Discovery**: Asset discovery dashboard wired to `/api/migrator/discover`
+- **Plan Builder**: Migration wave planning wired to `/api/migrator/plan`
+- **Execution**: Live migration tracking wired to `/api/migrator/execute`
 
 ---
 
@@ -170,12 +120,10 @@ Replace 9 stub steps in `services/orchestration/orchestration-service.ts`:
 - VMware: vSphere API (govmomi)
 - Hyper-V: PowerShell remoting
 - KVM: libvirt API
-- Output: `Workload[]` compatible with existing schema
 
 **Azure Adapter** (`services/discovery/azure-adapter.ts`):
 
-- Azure VMs, SQL, Blob, AKS, Functions
-- Uses `@azure/arm-*` SDKs
+- Azure VMs, SQL, Blob, AKS, Functions using `@azure/arm-*` SDKs
 
 ---
 
@@ -183,39 +131,16 @@ Replace 9 stub steps in `services/orchestration/orchestration-service.ts`:
 
 **Duration**: ~20 min | **Status**: 2/4 COMPLETE
 
-### Layer 1: Intent Ingestion ✅
-
-- File: `services/i2i/layers/layer1-intent-ingestion.ts`
-- Vertex AI (Gemini 1.5 Pro) + deterministic fallback
-- Tests: 6/6 ✅
-
-### Layer 2: Validation & Policy Guardrails ✅
-
-- File: `services/i2i/layers/layer2-validation-guardrails.ts`
-- CUE-style schema validation + OPA/Rego policies
-- PCI-DSS, HIPAA, GDPR, SOC2 enforcement
-- Tests: 8/8 ✅
-
-### Layer 3: Synthesis Engine ✅ (exists, needs tests)
-
-- File: `services/i2i/layers/layer3-synthesis-engine.ts`
-- Intent Schema → Terraform HCL for GCP
-- Building Block modules: VPC, Compute, Cloud SQL, GKE, GCS
-
-### Layer 4: Reconciliation Loop ✅ (exists, needs tests)
-
-- File: `services/i2i/layers/layer4-reconciliation-loop.ts`
-- Drift detection between intent and actual state
+- [x] Layer 1: Intent Ingestion (Vertex AI)
+- [x] Layer 2: Validation & Policy Guardrails (OPA)
+- [ ] Layer 3: Synthesis Engine (Terraform HCL gen)
+- [ ] Layer 4: Reconciliation Loop (Drift detection)
 
 ---
 
 ## 🔲 Phase 8: Agentic AI — 6 Agents
 
 **Duration**: ~20 min | **Status**: PENDING
-
-### Base: `services/agents/base-agent.ts` (exists)
-
-- Circuit breaker, retry logic, A2A messaging, heartbeat
 
 ### Agents to Create:
 
@@ -234,10 +159,9 @@ Replace 9 stub steps in `services/orchestration/orchestration-service.ts`:
 
 ### Plan:
 
-- File: `services/extended-thinking/extended-thinking-engine.ts`
 - Uses Claude 3.7 Sonnet Extended Thinking via Bedrock
-- Analyzes complex migration scenarios
-- Outputs: risk scores, confidence intervals, alternative strategies
+- Analyzes complex migration scenarios, generates risk scores
+- Outputs: `RiskAssessment`, `StrategyOptions`
 
 ---
 
@@ -245,26 +169,8 @@ Replace 9 stub steps in `services/orchestration/orchestration-service.ts`:
 
 **Duration**: ~20 min | **Status**: PENDING
 
-### 12 MCP Servers (Docker containers):
-
-1. `mcp-discovery` — Resource discovery tools
-2. `mcp-assessment` — 6Rs assessment tools
-3. `mcp-terraform` — Terraform plan/apply tools
-4. `mcp-gcp` — GCP API tools
-5. `mcp-aws` — AWS API tools
-6. `mcp-azure` — Azure API tools
-7. `mcp-cost` — Cost analysis tools
-8. `mcp-security` — Security scanning tools
-9. `mcp-monitoring` — Observability tools
-10. `mcp-database` — Database migration tools
-11. `mcp-network` — Network configuration tools
-12. `mcp-orchestration` — Workflow orchestration tools
-
-### Federation Router:
-
-- `mcp-servers/router/federation-router.ts`
-- Routes requests to appropriate MCP server
-- Circuit breaker + health checks
+- 12 MCP Servers in Docker (Discovery, Assessment, Terraform, Clouds, etc.)
+- Federation Router for intelligent request routing
 
 ---
 
@@ -272,16 +178,8 @@ Replace 9 stub steps in `services/orchestration/orchestration-service.ts`:
 
 **Duration**: ~15 min | **Status**: PENDING
 
-### Cost Optimization Copilot:
-
-- File: `services/cost-engine/cost-optimization-copilot.ts`
-- 8 analyzers: rightsizing, reserved instances, spot/preemptible, storage tiers, network egress, idle resources, commitment discounts, cross-region
-
-### Rollback Decision Engine:
-
-- File: `services/rollback/rollback-decision-engine.ts`
-- Anomaly detection: error rate, latency, throughput
-- Autonomous rollback trigger with confidence scoring
+- **Cost Copilot**: 8 analyzers (rightsizing, reserved instances, etc.)
+- **Rollback Engine**: Anomaly detection & autonomous rollback triggers
 
 ---
 
@@ -289,34 +187,6 @@ Replace 9 stub steps in `services/orchestration/orchestration-service.ts`:
 
 **Duration**: ~20 min | **Status**: PENDING
 
-### iPhone Companion App:
-
-- `frontend/mobile/` — React Native scaffold
-- Hungarian voice interface (Speech-to-Text → I2I Pipeline)
-- Migration status dashboard
-
-### Teams Bot:
-
-- `services/teams-connector/teams-bot.ts`
-- Bot Framework SDK
-- Commands: `/migrate start`, `/status`, `/approve`, `/rollback`
-
-### API Gateway:
-
-- `services/api-gateway/index.ts`
-- Express.js router
-- All service endpoints wired
-- Auth middleware (JWT)
-
----
-
-## ❌ Skipped (User Confirmed)
-
-- Predictive Resource Scaling with RL
-- Automated Compliance Drift Detection
-- Intelligent Test Case Generation
-- Cross-Cloud Cost Arbitrage Recommender
-- AI-Powered Incident Postmortem Generator
-- Federated Learning for Pattern Sharing
-- Autonomous Infrastructure Healer
-- Global Pattern Network (CRDT)
+- **iPhone App**: React Native + Hungarian voice interface
+- **Teams Bot**: Bot Framework SDK integration
+- **API Gateway**: Express.js router with auth & rate limiting
