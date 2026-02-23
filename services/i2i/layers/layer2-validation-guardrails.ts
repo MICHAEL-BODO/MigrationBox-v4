@@ -391,7 +391,7 @@ export class ValidationGuardrailEngine {
   ): void {
     // SOC 2: Availability (CC6)
     if (schema.resources) {
-      const hasHA = schema.resources.some(r => r.config?.multiAZ || r.config?.replicas > 1);
+      const hasHA = schema.resources.some(r => r.config?.multiAZ || (r.config?.replicas as number) > 1);
       if (!hasHA) {
         violations.push({
           policy: 'soc2-availability',
@@ -437,7 +437,7 @@ export class ValidationGuardrailEngine {
     if (schema.resources) {
       for (const resource of schema.resources) {
         if (resource.type === 'compute') {
-          const size = resource.config?.instanceType || resource.config?.size || '';
+          const size: string = (resource.config?.instanceType as string) || (resource.config?.size as string) || '';
           if (size.includes('xlarge') || size.includes('metal')) {
             warnings.push({
               field: `resources.${resource.name}.instanceType`,

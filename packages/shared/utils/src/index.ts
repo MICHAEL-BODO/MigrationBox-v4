@@ -92,7 +92,7 @@ export function createErrorResponse(
   code: string,
   message: string,
   statusCode: number = 500,
-  details?: Record<string, any>
+  details?: Record<string, unknown>
 ): { statusCode: number; body: string } {
   return {
     statusCode,
@@ -137,7 +137,7 @@ export interface PaginationParams {
   pageSize: number;
 }
 
-export function getPaginationParams(queryParams: Record<string, any>): PaginationParams {
+export function getPaginationParams(queryParams: Record<string, string>): PaginationParams {
   const page = Math.max(1, parseInt(queryParams.page || '1', 10));
   const pageSize = Math.min(100, Math.max(1, parseInt(queryParams.pageSize || '20', 10)));
   return { page, pageSize };

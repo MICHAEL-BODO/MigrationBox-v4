@@ -40,7 +40,7 @@ export interface Workload {
   region: string;
   name: string;
   status: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   discoveredAt: string;
   dependencies?: string[]; // Array of workloadIds
 }
@@ -107,7 +107,7 @@ export interface Migration {
   failedAt?: string;
   error?: string;
   rollbackAt?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -123,7 +123,7 @@ export interface IntentSchema {
   networking: IntentNetworking;
   security: IntentSecurity;
   compliance: Record<string, boolean>; // pciDss, hipaa, soc2, gdpr
-  monitoring?: Record<string, any>; // Added for validation guardrails
+  monitoring?: Record<string, unknown>; // Added for validation guardrails
   confidence: number; // 0-1
   createdAt: string;
   validatedAt?: string;
@@ -132,8 +132,8 @@ export interface IntentSchema {
 export interface IntentResource {
   type: string; // 'vpc', 'rds', 's3', 'lambda', etc.
   name: string;
-  properties: Record<string, any>;
-  config?: Record<string, any>; // Alias for properties used in some layers
+  properties: Record<string, unknown>;
+  config?: Record<string, unknown>; // Alias for properties used in some layers
   dependencies?: string[]; // References to other resource names
 }
 
@@ -175,8 +175,8 @@ export interface AgentTask {
   tenantId: string;
   migrationId?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
-  payload: Record<string, any>;
-  result?: Record<string, any>;
+  payload: Record<string, unknown>;
+  result?: Record<string, unknown>;
   error?: string;
   createdAt: string;
   startedAt?: string;
@@ -194,7 +194,7 @@ export interface MigrationPattern {
   targetProvider: CloudProvider;
   workloadTypes: WorkloadType[];
   strategy: MigrationStrategy;
-  anonymizedMetadata: Record<string, any>; // No PII
+  anonymizedMetadata: Record<string, unknown>; // No PII
   successRate: number; // 0-1
   avgDurationWeeks: number;
   avgCostSavings: number; // Percentage
@@ -212,7 +212,7 @@ export interface ApiResponse<T> {
   error?: {
     code: string;
     message: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
   };
   metadata?: {
     requestId: string;
@@ -239,7 +239,7 @@ export interface Event {
   eventType: string;
   tenantId: string;
   source: string;
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
   timestamp: string;
   version: string;
 }
@@ -253,7 +253,7 @@ export class MigrationBoxError extends Error {
     public code: string,
     message: string,
     public statusCode: number = 500,
-    public details?: Record<string, any>
+    public details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'MigrationBoxError';
