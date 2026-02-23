@@ -30,6 +30,7 @@ build/
 coverage/
 .turbo/
 *.tsbuildinfo
+frontend/desktop/electron/standalone/
 
 # Docker
 localstack-data/
