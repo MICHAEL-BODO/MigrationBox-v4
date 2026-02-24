@@ -82,26 +82,26 @@ export class FeatureEngineering {
 
       // Size/scale features
       dependency_count: (workload.dependencies?.length || 0),
-      data_size_gb: meta.sizeGb || meta.dataSize || 0,
-      instance_count: meta.instanceCount || meta.nodeCount || 1,
-      monthly_cost: meta.monthlyCost || meta.estimatedMonthlyCost || 0,
+      data_size_gb: (meta.sizeGb as number) || (meta.dataSize as number) || 0,
+      instance_count: (meta.instanceCount as number) || (meta.nodeCount as number) || 1,
+      monthly_cost: (meta.monthlyCost as number) || (meta.estimatedMonthlyCost as number) || 0,
 
       // Utilization features
-      cpu_utilization: meta.cpuUtilization || meta.utilizationPercent || 50,
-      memory_utilization: meta.memoryUtilization || 50,
-      storage_utilization: meta.storageUtilization || 50,
+      cpu_utilization: (meta.cpuUtilization as number) || (meta.utilizationPercent as number) || 50,
+      memory_utilization: (meta.memoryUtilization as number) || 50,
+      storage_utilization: (meta.storageUtilization as number) || 50,
 
       // Complexity features
       has_custom_code: meta.customCode ? 1 : 0,
-      has_compliance: meta.compliance?.length > 0 ? 1 : 0,
+      has_compliance: (meta.compliance as string[])?.length > 0 ? 1 : 0,
       is_stateful: ['database', 'storage'].includes(workload.type) ? 1 : 0,
       is_multi_az: meta.multiAZ ? 1 : 0,
       is_encrypted: meta.encrypted !== false ? 1 : 0,
       is_public: meta.publicAccess ? 1 : 0,
 
       // Age/lifecycle
-      age_days: meta.ageDays || 365,
-      last_modified_days: meta.lastModifiedDays || 30,
+      age_days: (meta.ageDays as number) || 365,
+      last_modified_days: (meta.lastModifiedDays as number) || 30,
       is_stopped: workload.status === 'stopped' ? 1 : 0,
     };
   }
@@ -319,7 +319,8 @@ export class RiskPredictor {
 
     // Forward pass through neural network
     const riskRaw = this.forwardPass(featureArray);
-    const riskScore = Math.min(100, Math.max(0, Math.round(riskRaw)));
+    // Uncapped for comparison, but will be capped for output
+    const riskScore = Math.max(0, Math.round(riskRaw));
 
     // Feature contribution analysis
     const factors = this.analyzeFactors(features, riskScore);
@@ -341,10 +342,11 @@ export class RiskPredictor {
     // Deterministic risk calculation (simulating NN output)
     // Uses known risk factors with reasonable weights
     const depIdx = 10; // dependency_count index
-    const statefulIdx = 20; // is_stateful index
-    const complianceIdx = 19; // has_compliance index
+    const statefulIdx = 19; // is_stateful index
+    const complianceIdx = 18; // has_compliance index
     const dataSizeIdx = 11; // data_size_gb index
-    const encryptedIdx = 22; // is_encrypted index
+    const encryptedIdx = 21; // is_encrypted index
+    const publicIdx = 22; // is_public index
 
     let risk = 15; // base risk
     risk += (input[depIdx] || 0) * 5;
@@ -352,9 +354,9 @@ export class RiskPredictor {
     risk += (input[complianceIdx] || 0) * 15;
     risk += (input[dataSizeIdx] || 0) * 0.01;
     risk += (input[encryptedIdx] === 0 ? 1 : 0) * 15;
-    risk += (input[23] || 0) * 10; // is_public
+    risk += (input[publicIdx] || 0) * 10; // is_public
 
-    return Math.min(100, Math.max(0, risk));
+    return Math.max(0, risk);
   }
 
   private analyzeFactors(features: Record<string, number>, _riskScore: number): RiskPrediction['factors'] {

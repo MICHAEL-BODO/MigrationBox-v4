@@ -42,7 +42,7 @@ export class OptimizationAgent extends BaseAgent {
     this.updateProgress(5);
 
     // Load workloads
-    const workloads = await this.loadWorkloads(tenantId || task.tenantId, workloadIds);
+    const workloads = await this.loadWorkloads((tenantId || task.tenantId) as string, workloadIds as string[] | undefined);
     this.updateProgress(15);
 
     const recommendations: OptimizationRecommendation[] = [];
