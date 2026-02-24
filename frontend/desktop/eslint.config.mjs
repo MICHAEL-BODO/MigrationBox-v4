@@ -12,15 +12,20 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    ignores: [
-      "electron/**/*.js",
-      "scripts/**/*.js"
-    ],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
-      "@typescript-eslint/no-var-requires": "off"
+      "react/no-unescaped-entities": "off",
+      "@typescript-eslint/triple-slash-reference": "off"
     }
+  },
+  {
+    ignores: [
+      "**/electron/**/*",
+      "**/scripts/**/*",
+      "**/next-env.d.ts",
+      "**/next.config.ts"
+    ]
   }
 ];
 

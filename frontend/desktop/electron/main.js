@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
+/* eslint-disable no-console */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
