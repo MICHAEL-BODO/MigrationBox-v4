@@ -75,7 +75,7 @@ export class OrchestrationAgent extends BaseAgent {
 
     const plan: MigrationPlan = {
       planId: generateId('plan'),
-      tenantId: tenantId || task.tenantId,
+      tenantId: (tenantId || task.tenantId) as string,
       phases: MIGRATION_PHASES.map(p => ({
         name: p.name,
         agentType: p.agent,
@@ -114,7 +114,7 @@ export class OrchestrationAgent extends BaseAgent {
    */
   private async executeMigrationPlan(task: AgentTask): Promise<void> {
     const { planId } = task.payload;
-    const plan = this.activePlans.get(planId);
+    const plan = this.activePlans.get(planId as string);
 
     if (!plan) {
       throw new Error(`Plan ${planId} not found`);
@@ -187,7 +187,7 @@ export class OrchestrationAgent extends BaseAgent {
    */
   private async rollbackPlan(task: AgentTask): Promise<void> {
     const { planId } = task.payload;
-    const plan = this.activePlans.get(planId);
+    const plan = this.activePlans.get(planId as string);
 
     if (!plan) {
       throw new Error(`Plan ${planId} not found`);
@@ -227,12 +227,12 @@ export class OrchestrationAgent extends BaseAgent {
     const { action, planId, phase, status, result } = task.payload;
 
     if (action && planId) {
-      const plan = this.activePlans.get(planId);
+      const plan = this.activePlans.get(planId as string);
       if (plan) {
         const phaseEntry = plan.phases.find(p => p.name === phase);
         if (phaseEntry) {
-          phaseEntry.status = status || 'completed';
-          phaseEntry.result = result;
+          phaseEntry.status = (status || 'completed') as "running" | "pending" | "completed" | "failed" | "skipped";
+          phaseEntry.result = result as Record<string, any>;
           phaseEntry.completedAt = getCurrentTimestamp();
         }
       }

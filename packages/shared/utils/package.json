@@ -14,7 +14,9 @@
     "test:unit": "jest",
     "clean": "rm -rf dist"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@migrationbox/types": "*"
+  },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/jest": "^29.5.0",

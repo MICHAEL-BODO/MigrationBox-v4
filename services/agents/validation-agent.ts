@@ -86,8 +86,8 @@ export class ValidationAgent extends BaseAgent {
 
     const report: ValidationReport = {
       taskId: task.taskId,
-      migrationId: migrationId || '',
-      phase: phase || 'post-migration',
+      migrationId: (migrationId as string) || '',
+      phase: (phase as 'pre-migration' | 'post-migration' | 'continuous') || 'post-migration',
       overallStatus: hasFailure ? 'failed' : hasWarning ? 'warning' : 'passed',
       overallScore,
       dimensions,

@@ -191,12 +191,12 @@ export class CRDTKnowledgeNetwork {
     return patterns.map(p => ({
       patternId: p.patternId,
       description: `${p.sourceProvider} → ${p.targetProvider} (${p.strategy})`,
-      confidence: Math.min(0.95, p.anonymizedMetadata.sampleSize / 100),
-      sampleSize: p.anonymizedMetadata.sampleSize || 1,
+      confidence: Math.min(0.95, (p.anonymizedMetadata.sampleSize as number) / 100),
+      sampleSize: (p.anonymizedMetadata.sampleSize as number) || 1,
       avgDuration: p.avgDurationWeeks,
       avgCostSavings: p.avgCostSavings,
       successRate: p.successRate,
-      commonBlockers: p.anonymizedMetadata.commonBlockers || [],
+      commonBlockers: (p.anonymizedMetadata.commonBlockers as string[]) || [],
       recommendations: this.generateRecommendations(p),
     }));
   }
@@ -335,8 +335,8 @@ export class CRDTKnowledgeNetwork {
 
   private mergePattern(existing: MigrationPattern, newData: AnonymizedMigration): MigrationPattern {
     const meta = existing.anonymizedMetadata;
-    const n = (meta.sampleSize || 1) + 1;
-    const oldN = meta.sampleSize || 1;
+    const n = ((meta.sampleSize as number) || 1) + 1;
+    const oldN = (meta.sampleSize as number) || 1;
 
     // Running average for numerical fields
     const avgDuration = (existing.avgDurationWeeks * oldN + newData.durationWeeks) / n;
@@ -344,11 +344,11 @@ export class CRDTKnowledgeNetwork {
     const successRate = (existing.successRate * oldN + (newData.success ? 1 : 0)) / n;
 
     // Merge complexity distribution
-    const dist = { ...(meta.complexityDistribution || {}) };
+    const dist = { ...(meta.complexityDistribution as Record<string, number> || {}) };
     dist[newData.complexity] = (dist[newData.complexity] || 0) + 1;
 
     // Merge blockers (union, keep top 10)
-    const allBlockers = [...(meta.commonBlockers || []), ...newData.blockers];
+    const allBlockers = [...(meta.commonBlockers as string[] || []), ...newData.blockers];
     const blockerCounts = new Map<string, number>();
     for (const b of allBlockers) {
       blockerCounts.set(b, (blockerCounts.get(b) || 0) + 1);
@@ -367,7 +367,7 @@ export class CRDTKnowledgeNetwork {
         sampleSize: n,
         avgDuration,
         avgCostSavings: avgSavings,
-        avgResourceCount: (meta.avgResourceCount * oldN + newData.resourceCount) / n,
+        avgResourceCount: ((meta.avgResourceCount as number) * oldN + newData.resourceCount) / n,
         complexityDistribution: dist,
         commonBlockers: topBlockers,
       },
@@ -424,8 +424,9 @@ export class CRDTKnowledgeNetwork {
       recs.push(`Average ${pattern.avgCostSavings.toFixed(0)}% cost savings reported by similar migrations`);
     }
 
-    if (pattern.anonymizedMetadata.commonBlockers?.length > 0) {
-      recs.push(`Common blockers: ${pattern.anonymizedMetadata.commonBlockers.slice(0, 3).join(', ')}`);
+    const commonBlockers = pattern.anonymizedMetadata.commonBlockers as string[];
+    if (commonBlockers?.length > 0) {
+      recs.push(`Common blockers: ${commonBlockers.slice(0, 3).join(', ')}`);
     }
 
     return recs;

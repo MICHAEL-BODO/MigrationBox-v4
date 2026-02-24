@@ -32,7 +32,7 @@ export class AssessmentAgent extends BaseAgent {
     this.updateProgress(5);
 
     // Phase 1: Load workloads from discovery data
-    const workloads = await this.loadWorkloads(tenantId || task.tenantId, workloadIds || []);
+    const workloads = await this.loadWorkloads((tenantId || task.tenantId) as string, (workloadIds || []) as string[]);
     this.updateProgress(15);
 
     // Phase 2: Run 6Rs analysis with Extended Thinking for complex workloads

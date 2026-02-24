@@ -460,7 +460,7 @@ describe('CRDTKnowledgeNetwork', () => {
       blockers: ['Contact admin@company.com for credentials', 'Call 555-123-4567'],
     });
 
-    const blockers = pattern.anonymizedMetadata.commonBlockers;
+    const blockers = pattern.anonymizedMetadata.commonBlockers as string[];
     expect(blockers.every((b: string) => !b.includes('admin@company.com'))).toBe(true);
     expect(blockers.every((b: string) => !b.includes('555-123-4567'))).toBe(true);
   });
