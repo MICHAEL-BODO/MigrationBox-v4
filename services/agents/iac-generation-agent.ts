@@ -18,14 +18,14 @@ export class IaCGenerationAgent extends BaseAgent {
 
     // Phase 1: Intent Ingestion (Layer 1)
     const intentSchema = await this.runIntentIngestion(
-      tenantId || task.tenantId,
-      intentInput,
-      targetProvider
+      (tenantId || task.tenantId) as string,
+      intentInput as string,
+      targetProvider as string
     );
     this.updateProgress(25);
 
     // Phase 2: Validation & Policy Guardrails (Layer 2)
-    const validationResult = await this.runValidation(intentSchema, compliance);
+    const validationResult = await this.runValidation(intentSchema, compliance as string[] | undefined);
     if (!validationResult.valid && (validationResult.blockers?.length ?? 0) > 0) {
       await this.sendMessage('orchestration', 'iac-validation-failed', {
         taskId: task.taskId,

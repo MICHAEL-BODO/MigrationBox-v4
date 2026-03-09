@@ -1,0 +1,16 @@
+appId: com.mike-first.dashboard
+productName: MIKE-FIRST
+directories:
+  output: dist
+  buildResources: build
+files:
+  - "electron/**/*"
+  - "package.json"
+asarUnpack:
+  - "electron/standalone/**/*"
+win:
+  target: nsis
+linux:
+  target: AppImage
+mac:
+  target: dmg

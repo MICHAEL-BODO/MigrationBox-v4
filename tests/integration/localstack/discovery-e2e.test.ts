@@ -5,8 +5,8 @@
  * Requires LocalStack running on localhost:4566
  */
 
-import { DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
-import { SQSClient, SendMessageCommand, ReceiveMessageCommand } from '@aws-sdk/client-sqs';
+import { DynamoDBClient, GetItemCommand, PutItemCommand, CreateTableCommand, ListTablesCommand } from '@aws-sdk/client-dynamodb';
+import { SQSClient, SendMessageCommand, ReceiveMessageCommand, CreateQueueCommand } from '@aws-sdk/client-sqs';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 
 const ENDPOINT = process.env.AWS_ENDPOINT_URL || 'http://localhost:4566';
@@ -25,9 +25,72 @@ const sqs = new SQSClient({
   credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
 });
 
+const TABLES = {
+  discoveries: `migrationbox-discoveries-${STAGE}`,
+  workloads: `migrationbox-workloads-${STAGE}`,
+  tasks: `migrationbox-agent-tasks-${STAGE}`,
+  tenants: `migrationbox-tenants-${STAGE}`,
+};
+
+const QUEUES = {
+  discovery: `migrationbox-discovery-queue-${STAGE}`,
+};
+
+// Helper to ensure tables exist
+async function ensureTable(tableName: string, keySchema: any, attributeDefinitions: any) {
+  try {
+    const list = await dynamodb.send(new ListTablesCommand({}));
+    if (!list.TableNames?.includes(tableName)) {
+      await dynamodb.send(new CreateTableCommand({
+        TableName: tableName,
+        KeySchema: keySchema,
+        AttributeDefinitions: attributeDefinitions,
+        BillingMode: 'PAY_PER_REQUEST',
+      }));
+    }
+  } catch (e) {
+    console.error(`Failed to ensure table ${tableName}:`, e);
+  }
+}
+
+// Helper to ensure queue exists
+async function ensureQueue(queueName: string): Promise<string> {
+  try {
+    const res = await sqs.send(new CreateQueueCommand({ QueueName: queueName }));
+    return res.QueueUrl!;
+  } catch (e) {
+    console.error(`Failed to ensure queue ${queueName}:`, e);
+    return `${ENDPOINT}/000000000000/${queueName}`;
+  }
+}
+
 describe('Discovery Service E2E (LocalStack)', () => {
   const tenantId = `test-tenant-${Date.now()}`;
   const discoveryId = `disc-e2e-${Date.now()}`;
+  let queueUrl: string;
+
+  beforeAll(async () => {
+    // Setup Tables
+    await ensureTable(TABLES.discoveries,
+      [{ AttributeName: 'tenantId', KeyType: 'HASH' }, { AttributeName: 'discoveryId', KeyType: 'RANGE' }],
+      [{ AttributeName: 'tenantId', AttributeType: 'S' }, { AttributeName: 'discoveryId', AttributeType: 'S' }]
+    );
+    await ensureTable(TABLES.workloads,
+      [{ AttributeName: 'tenantId', KeyType: 'HASH' }, { AttributeName: 'workloadId', KeyType: 'RANGE' }],
+      [{ AttributeName: 'tenantId', AttributeType: 'S' }, { AttributeName: 'workloadId', AttributeType: 'S' }]
+    );
+    await ensureTable(TABLES.tasks,
+      [{ AttributeName: 'tenantId', KeyType: 'HASH' }, { AttributeName: 'taskId', KeyType: 'RANGE' }],
+      [{ AttributeName: 'tenantId', AttributeType: 'S' }, { AttributeName: 'taskId', AttributeType: 'S' }]
+    );
+    await ensureTable(TABLES.tenants,
+      [{ AttributeName: 'tenantId', KeyType: 'HASH' }],
+      [{ AttributeName: 'tenantId', AttributeType: 'S' }]
+    );
+
+    // Setup Queues
+    queueUrl = await ensureQueue(QUEUES.discovery);
+  }, 30000); // Increased timeout for setup
 
   describe('DynamoDB Operations', () => {
     it('should write and read a discovery record', async () => {
@@ -42,12 +105,12 @@ describe('Discovery Service E2E (LocalStack)', () => {
       };
 
       await dynamodb.send(new PutItemCommand({
-        TableName: `migrationbox-discoveries-${STAGE}`,
+        TableName: TABLES.discoveries,
         Item: marshall(discovery, { removeUndefinedValues: true }),
       }));
 
       const result = await dynamodb.send(new GetItemCommand({
-        TableName: `migrationbox-discoveries-${STAGE}`,
+        TableName: TABLES.discoveries,
         Key: marshall({ tenantId, discoveryId }),
       }));
 
@@ -73,12 +136,12 @@ describe('Discovery Service E2E (LocalStack)', () => {
       };
 
       await dynamodb.send(new PutItemCommand({
-        TableName: `migrationbox-workloads-${STAGE}`,
+        TableName: TABLES.workloads,
         Item: marshall(workload, { removeUndefinedValues: true }),
       }));
 
       const result = await dynamodb.send(new GetItemCommand({
-        TableName: `migrationbox-workloads-${STAGE}`,
+        TableName: TABLES.workloads,
         Key: marshall({ tenantId, workloadId: workload.workloadId }),
       }));
 
@@ -100,12 +163,12 @@ describe('Discovery Service E2E (LocalStack)', () => {
       };
 
       await dynamodb.send(new PutItemCommand({
-        TableName: `migrationbox-agent-tasks-${STAGE}`,
+        TableName: TABLES.tasks,
         Item: marshall(task, { removeUndefinedValues: true }),
       }));
 
       const result = await dynamodb.send(new GetItemCommand({
-        TableName: `migrationbox-agent-tasks-${STAGE}`,
+        TableName: TABLES.tasks,
         Key: marshall({ tenantId, taskId: task.taskId }),
       }));
 
@@ -118,8 +181,6 @@ describe('Discovery Service E2E (LocalStack)', () => {
 
   describe('SQS Operations', () => {
     it('should send and receive discovery queue messages', async () => {
-      const queueUrl = `${ENDPOINT}/000000000000/migrationbox-discovery-queue-${STAGE}`;
-
       const message = {
         discoveryId,
         tenantId,
@@ -160,12 +221,12 @@ describe('Discovery Service E2E (LocalStack)', () => {
       };
 
       await dynamodb.send(new PutItemCommand({
-        TableName: `migrationbox-tenants-${STAGE}`,
+        TableName: TABLES.tenants,
         Item: marshall(tenant, { removeUndefinedValues: true }),
       }));
 
       const result = await dynamodb.send(new GetItemCommand({
-        TableName: `migrationbox-tenants-${STAGE}`,
+        TableName: TABLES.tenants,
         Key: marshall({ tenantId }),
       }));
 
